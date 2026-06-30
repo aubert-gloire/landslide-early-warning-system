@@ -1,0 +1,129 @@
+"""
+Africa's Talking SMS integration.
+Sandbox mode during development; set AT_USERNAME to live username for production.
+
+Inbound SMS webhook: Africa's Talking posts to /api/sms/callback when an officer replies.
+Reply format expected from officers: "YES <unit_id>" or "NO <unit_id>"
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timedelta
+
+import africastalking
+
+from ..config import get_settings
+from ..database import get_db
+
+logger = logging.getLogger(__name__)
+
+
+def _init_at():
+    settings = get_settings()
+    africastalking.initialize(settings.at_username, settings.at_api_key)
+    return africastalking.SMS
+
+
+def build_alert_message(
+    district: str,
+    unit_id: int,
+    risk_probability: float,
+    top_features: list[tuple[str, float]],
+) -> str:
+    feature_str = ", ".join(f[0].replace("_", " ") for f in top_features[:2])
+    prob_pct = int(risk_probability * 100)
+    return (
+        f"[LSEWS ALERT] {district} — Slope unit {unit_id}: "
+        f"{prob_pct}% landslide risk. "
+        f"Primary factors: {feature_str}. "
+        f"Reply YES {unit_id} to confirm or NO {unit_id} to deny. "
+        f"This is decision-support only — follow official MINEMA protocols."
+    )
+
+
+async def send_alert(
+    phone: str,
+    recipient_id: str,
+    prediction_id: str,
+    district: str,
+    unit_id: int,
+    risk_probability: float,
+    top_features: list[tuple[str, float]],
+) -> str:
+    """Send SMS alert and write AlertRecord to MongoDB. Returns alert_id."""
+    from ..models.alert import AlertRecord
+    import uuid
+
+    settings = get_settings()
+    message = build_alert_message(district, unit_id, risk_probability, top_features)
+    alert_id = str(uuid.uuid4())
+
+    alert = AlertRecord(
+        alert_id=alert_id,
+        prediction_id=prediction_id,
+        recipient_id=recipient_id,
+        message=message,
+        delivery_status="pending",
+    )
+
+    db = get_db()
+    await db.alert_records.insert_one(alert.model_dump())
+
+    try:
+        sms = _init_at()
+        sender = settings.at_sender_id if settings.is_production else None
+        response = sms.send(message, [phone], sender_id=sender)
+        recipients = response.get("SMSMessageData", {}).get("Recipients", [])
+        status = recipients[0].get("status", "failed") if recipients else "failed"
+        delivery_status = "sent" if "Success" in status else "failed"
+    except Exception as e:
+        logger.error("AT SMS failed for %s: %s", phone, e)
+        delivery_status = "failed"
+
+    await db.alert_records.update_one(
+        {"alert_id": alert_id},
+        {"$set": {"delivery_status": delivery_status}},
+    )
+    logger.info("SMS %s → %s (status=%s)", alert_id, phone, delivery_status)
+    return alert_id
+
+
+async def handle_inbound(phone: str, message: str):
+    """
+    Process officer SMS reply and update AlertRecord.feedback.
+    Expected format: "YES <unit_id>" or "NO <unit_id>"
+    """
+    db = get_db()
+    message = message.strip().upper()
+    parts = message.split()
+    if not parts or parts[0] not in ("YES", "NO"):
+        logger.info("Unrecognized SMS reply from %s: %s", phone, message)
+        return
+
+    confirmed = parts[0] == "YES"
+    # Match to a recent unacknowledged alert from this phone
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    recipient = await db.recipients.find_one({"phone": phone})
+    if not recipient:
+        logger.warning("Inbound SMS from unknown phone %s", phone)
+        return
+
+    alert = await db.alert_records.find_one(
+        {
+            "recipient_id": recipient["recipient_id"],
+            "sent_at": {"$gte": cutoff},
+            "feedback": None,
+        },
+        sort=[("sent_at", -1)],
+    )
+    if not alert:
+        logger.info("No pending alert to match for %s", phone)
+        return
+
+    feedback_text = "CONFIRMED" if confirmed else "DENIED"
+    await db.alert_records.update_one(
+        {"alert_id": alert["alert_id"]},
+        {"$set": {"feedback": feedback_text, "feedback_at": datetime.utcnow()}},
+    )
+    logger.info("Alert %s feedback: %s from %s", alert["alert_id"], feedback_text, phone)

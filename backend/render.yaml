@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: landslide-ews-api
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB_NAME
+        value: landslide_ews
+      - key: AT_USERNAME
+        sync: false
+      - key: AT_API_KEY
+        sync: false
+      - key: AT_SENDER_ID
+        value: LSEWS
+      - key: OPENTOPO_API_KEY
+        sync: false
+      - key: APP_ENV
+        value: production
+      - key: ALERT_PROBABILITY_THRESHOLD
+        value: "0.80"
+    healthCheckPath: /health
