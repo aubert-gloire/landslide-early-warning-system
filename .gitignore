@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Secrets — NEVER commit GEE service account key or any credentials
+secrets/
+
+# Data (large rasters & raw downloads — not tracked in git)
+data/raw/
+data/processed/*.tif
+data/processed/*.tiff
+data/processed/*.nc
+data/processed/*.parquet
+ml/artifacts/*.pkl
+
+# Keep placeholder files and the trained model (401KB — checked in for Render deploy)
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!ml/artifacts/.gitkeep
+!ml/artifacts/rf_model.joblib
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Logs
+*.log
+logs/
