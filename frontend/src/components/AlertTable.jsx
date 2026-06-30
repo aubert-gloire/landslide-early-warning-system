@@ -1,0 +1,123 @@
+import { useState } from "react";
+import { useApi } from "../hooks/useApi";
+
+const STATUS_COLORS = {
+  sent:      { bg: "#064e3b", text: "#6ee7b7" },
+  delivered: { bg: "#14532d", text: "#86efac" },
+  pending:   { bg: "#1c1917", text: "#a8a29e" },
+  failed:    { bg: "#450a0a", text: "#fca5a5" },
+};
+
+const FEEDBACK_COLORS = {
+  CONFIRMED: { bg: "#1e3a5f", text: "#93c5fd" },
+  DENIED:    { bg: "#3f1f1f", text: "#f87171" },
+};
+
+function formatDate(ts) {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+}
+
+const styles = {
+  wrap: { overflowX: "auto" },
+  controls: { display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" },
+  input: {
+    background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0",
+    padding: "6px 10px", borderRadius: 6, fontSize: 13,
+  },
+  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
+  th: { textAlign: "left", padding: "8px 12px", color: "#94a3b8", borderBottom: "1px solid #1e293b", whiteSpace: "nowrap" },
+  td: { padding: "10px 12px", borderBottom: "1px solid #1e293b", verticalAlign: "top" },
+  badge: (style) => ({
+    display: "inline-block", padding: "2px 8px", borderRadius: 12,
+    fontSize: 11, fontWeight: 600, background: style.bg, color: style.text,
+  }),
+  empty: { color: "#64748b", padding: "32px 0", textAlign: "center" },
+  pagination: { display: "flex", gap: 8, marginTop: 14, alignItems: "center" },
+  btn: {
+    background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0",
+    padding: "4px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12,
+  },
+};
+
+const DISTRICTS = ["All", "Gakenke", "Burera", "Musanze", "Gicumbi"];
+const PAGE_SIZE = 20;
+
+export default function AlertTable() {
+  const [district, setDistrict] = useState("");
+  const [page, setPage] = useState(0);
+
+  const path = `/api/alerts?limit=${PAGE_SIZE}&skip=${page * PAGE_SIZE}${district ? `&district=${district}` : ""}`;
+  const { data, loading, error, refetch } = useApi(path, [district, page]);
+
+  const alerts = data?.alerts || [];
+  const total = data?.total || 0;
+
+  return (
+    <div>
+      <div style={styles.controls}>
+        <select
+          style={styles.input}
+          value={district}
+          onChange={(e) => { setDistrict(e.target.value === "All" ? "" : e.target.value); setPage(0); }}
+        >
+          {DISTRICTS.map((d) => <option key={d}>{d}</option>)}
+        </select>
+        <button style={styles.btn} onClick={refetch}>Refresh</button>
+        <span style={{ color: "#64748b", fontSize: 12, alignSelf: "center" }}>
+          {total} total alerts
+        </span>
+      </div>
+
+      {error && <div style={{ color: "#f87171", marginBottom: 12 }}>Error: {error}</div>}
+
+      <div style={styles.wrap}>
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              {["Sent at", "District", "Unit ID", "Risk %", "Status", "Officer Feedback"].map((h) => (
+                <th key={h} style={styles.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} style={styles.empty}>Loading…</td></tr>
+            ) : alerts.length === 0 ? (
+              <tr><td colSpan={6} style={styles.empty}>No alerts found</td></tr>
+            ) : alerts.map((a) => {
+              const statusStyle = STATUS_COLORS[a.delivery_status] || STATUS_COLORS.pending;
+              const feedbackStyle = a.feedback ? FEEDBACK_COLORS[a.feedback] : null;
+              const riskPct = a.risk_probability != null ? Math.round(a.risk_probability * 100) : null;
+              return (
+                <tr key={a.alert_id}>
+                  <td style={{ ...styles.td, color: "#94a3b8", whiteSpace: "nowrap" }}>{formatDate(a.sent_at)}</td>
+                  <td style={styles.td}>{a.district || "—"}</td>
+                  <td style={{ ...styles.td, fontFamily: "monospace", color: "#94a3b8" }}>{a.slope_unit_id || "—"}</td>
+                  <td style={styles.td}>{riskPct != null ? `${riskPct}%` : "—"}</td>
+                  <td style={styles.td}>
+                    <span style={styles.badge(statusStyle)}>{a.delivery_status}</span>
+                  </td>
+                  <td style={styles.td}>
+                    {feedbackStyle
+                      ? <span style={styles.badge(feedbackStyle)}>{a.feedback}</span>
+                      : <span style={{ color: "#475569" }}>Awaiting reply</span>
+                    }
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {total > PAGE_SIZE && (
+        <div style={styles.pagination}>
+          <button style={styles.btn} disabled={page === 0} onClick={() => setPage(p => p - 1)}>← Prev</button>
+          <span style={{ color: "#94a3b8", fontSize: 12 }}>Page {page + 1} of {Math.ceil(total / PAGE_SIZE)}</span>
+          <button style={styles.btn} disabled={(page + 1) * PAGE_SIZE >= total} onClick={() => setPage(p => p + 1)}>Next →</button>
+        </div>
+      )}
+    </div>
+  );
+}
