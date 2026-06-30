@@ -1,0 +1,34 @@
+{
+  "feature_cols": [
+    "slope_angle",
+    "aspect",
+    "twi",
+    "drainage_density",
+    "ndvi",
+    "soil_class",
+    "daily_mm",
+    "antecedent_5day_mm"
+  ],
+  "production_threshold": 0.4000000000000001,
+  "tuned_threshold": 0.4000000000000001,
+  "feature_importances": {
+    "twi": 0.21200805314797166,
+    "antecedent_5day_mm": 0.2115573900784175,
+    "slope_angle": 0.18076070338744055,
+    "aspect": 0.14086770859945028,
+    "ndvi": 0.13941524381961182,
+    "daily_mm": 0.0675724822786223,
+    "soil_class": 0.04781841868848591,
+    "drainage_density": 0.0
+  },
+  "cv_fnr_at_0.50": 0.99999999975,
+  "cv_fpr_at_0.50": 0.0999999999975,
+  "cv_auc": 0.6187499999999999,
+  "cv_fnr_tuned": 0.7499999998125,
+  "cv_fpr_tuned": 0.14999999999625002,
+  "cv_precision_tuned": 0.1428571428367347,
+  "cv_recall_tuned": 0.2499999999375,
+  "alert_threshold": 0.4000000000000001,
+  "cv_fnr_at_alert": 0.7499999998125,
+  "cv_fpr_at_alert": 0.14999999999625002
+}
