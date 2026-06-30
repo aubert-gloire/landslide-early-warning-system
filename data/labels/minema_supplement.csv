@@ -1,0 +1,5 @@
+date,district,lat,lon,label,source,notes
+2023-05-02,Musanze,-1.4996,29.6346,1,Kuradusenge et al. 2020,"May 2023 Northern Province event — multiple fatalities"
+2023-05-04,Gakenke,-1.6995,29.7855,1,Kuradusenge et al. 2020,"May 2023 Northern Province event"
+2018-05-06,Burera,-1.3990,29.8435,1,Habimana et al. 2020,"May 2018 event — secondary backtest benchmark"
+2011-03-05,Gicumbi,-1.5560,30.0635,1,Habimana et al. 2020,"2011 Gicumbi event"
