@@ -110,7 +110,8 @@ async def step_load():
     docs = []
     for _, row in gdf.iterrows():
         unit_id = int(row["unit_id"])
-        geom = json.loads(row.geometry.to_json()) if hasattr(row.geometry, "to_json") else {}
+        from shapely.geometry import mapping
+        geom = mapping(row.geometry) if row.geometry else {}
 
         doc = {
             "unit_id": unit_id,
