@@ -44,7 +44,13 @@ def predict_batch(
     probs = model.predict_proba(X)[:, 1]
     alerts = (probs >= threshold).astype(bool)
 
-    importances = model.feature_importances_
+    _clf = model.named_steps['clf'] if hasattr(model, 'named_steps') else model
+    if hasattr(_clf, 'feature_importances_'):
+        importances = _clf.feature_importances_
+    elif hasattr(_clf, 'coef_'):
+        importances = np.abs(_clf.coef_[0])
+    else:
+        importances = np.ones(len(feature_cols)) / len(feature_cols)
     top_idx = np.argsort(importances)[::-1][:3]
     top_features = [(feature_cols[i], round(float(importances[i]), 4)) for i in top_idx]
 

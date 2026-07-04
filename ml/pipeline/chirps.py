@@ -144,13 +144,21 @@ class CHIRPSDownloader:
 
         combined = pd.concat(all_frames, ignore_index=True)
         combined["date"] = pd.to_datetime(combined["date"])
-
-        # Compute 5-day antecedent rainfall — the key feature from Kuradusenge et al. 2020
         combined = combined.sort_values(["unit_id", "date"])
-        combined["antecedent_5day_mm"] = (
-            combined.groupby("unit_id")["daily_mm"]
-            .transform(lambda s: s.rolling(5, min_periods=1).sum())
-        )
+
+        # Antecedent rainfall windows — different windows capture different soil depths
+        for window, col in [(3, "antecedent_3day_mm"),
+                            (5, "antecedent_5day_mm"),
+                            (10, "antecedent_10day_mm")]:
+            combined[col] = (
+                combined.groupby("unit_id")["daily_mm"]
+                .transform(lambda s, w=window: s.rolling(w, min_periods=1).sum())
+            )
+
+        # Intensity ratio: sudden burst vs gradual saturation
+        combined["rainfall_intensity_ratio"] = (
+            combined["daily_mm"] / (combined["antecedent_5day_mm"] + 1.0)
+        ).round(4)
 
         out = self.processed_dir / "chirps_historical.parquet"
         combined.to_parquet(out, index=False)
@@ -167,15 +175,23 @@ class CHIRPSDownloader:
         history_path = self.processed_dir / "chirps_historical.parquet"
         if history_path.exists():
             history = pd.read_parquet(history_path)
-            cutoff = pd.Timestamp(yesterday) - pd.Timedelta(days=4)
+            cutoff = pd.Timestamp(yesterday) - pd.Timedelta(days=9)  # 10 days for antecedent_10day
             recent = history[history["date"] >= cutoff][["unit_id", "date", "daily_mm"]]
             combined = pd.concat([recent, daily_df], ignore_index=True)
         else:
             combined = daily_df
 
         combined = combined.sort_values(["unit_id", "date"])
-        combined["antecedent_5day_mm"] = (
-            combined.groupby("unit_id")["daily_mm"]
-            .transform(lambda s: s.rolling(5, min_periods=1).sum())
-        )
+
+        for window, col in [(3, "antecedent_3day_mm"),
+                            (5, "antecedent_5day_mm"),
+                            (10, "antecedent_10day_mm")]:
+            combined[col] = (
+                combined.groupby("unit_id")["daily_mm"]
+                .transform(lambda s, w=window: s.rolling(w, min_periods=1).sum())
+            )
+        combined["rainfall_intensity_ratio"] = (
+            combined["daily_mm"] / (combined["antecedent_5day_mm"] + 1.0)
+        ).round(4)
+
         return combined[combined["date"] == pd.Timestamp(yesterday)]

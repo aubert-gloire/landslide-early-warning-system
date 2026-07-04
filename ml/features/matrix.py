@@ -10,9 +10,10 @@ Join logic:
 For training: produces a flat Parquet with one row per (unit_id, date).
 For inference: produces one row per unit_id for today.
 
-Feature columns (8 total):
-  Static: slope_angle, aspect, twi, drainage_density, ndvi, soil_class
-  Dynamic: daily_rainfall_mm, antecedent_5day_mm
+Feature columns (12 total):
+  Static:  slope_angle, aspect, twi, drainage_density, ndvi, soil_class, landuse_class
+  Dynamic: daily_mm, antecedent_3day_mm, antecedent_5day_mm,
+           antecedent_10day_mm, rainfall_intensity_ratio
 """
 
 from __future__ import annotations
@@ -26,8 +27,14 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-STATIC_FEATURES = ["slope_angle", "aspect", "twi", "drainage_density", "ndvi", "soil_class"]
-DYNAMIC_FEATURES = ["daily_mm", "antecedent_5day_mm"]
+STATIC_FEATURES = [
+    "slope_angle", "aspect", "twi", "drainage_density",
+    "ndvi", "soil_class", "landuse_class",
+]
+DYNAMIC_FEATURES = [
+    "daily_mm", "antecedent_3day_mm", "antecedent_5day_mm",
+    "antecedent_10day_mm", "rainfall_intensity_ratio",
+]
 FEATURE_COLS = STATIC_FEATURES + DYNAMIC_FEATURES
 LABEL_COL = "label"
 
@@ -72,6 +79,20 @@ class FeatureMatrixBuilder:
             base["soil_class"] = 4
 
         base["soil_class"] = base["soil_class"].fillna(4).astype(int)
+
+        # ESA WorldCover 2021 land use class (run scripts/fetch_worldcover.py first)
+        landuse_path = self.processed_dir / "landuse_per_unit.parquet"
+        if landuse_path.exists():
+            landuse = pd.read_parquet(landuse_path)[["unit_id", "landuse_class"]]
+            base = base.merge(landuse, on="unit_id", how="left")
+        else:
+            logger.warning(
+                "landuse_per_unit.parquet not found — landuse_class will be NaN. "
+                "Run scripts/fetch_worldcover.py to extract ESA WorldCover 2021."
+            )
+            base["landuse_class"] = np.nan
+        base["landuse_class"] = pd.to_numeric(base["landuse_class"], errors="coerce")
+
         return base
 
     def build_training_matrix(
@@ -167,7 +188,8 @@ class FeatureMatrixBuilder:
         rainfall_df: output of CHIRPSDownloader.fetch_latest()
         """
         static = self._load_static(slope_units_gdf)
-        merged = static.merge(rainfall_df[["unit_id", "daily_mm", "antecedent_5day_mm"]], on="unit_id", how="left")
+        rain_cols = ["unit_id"] + [c for c in DYNAMIC_FEATURES if c in rainfall_df.columns]
+        merged = static.merge(rainfall_df[rain_cols], on="unit_id", how="left")
 
         for col in FEATURE_COLS:
             if col not in merged.columns:

@@ -1,15 +1,14 @@
 """
 Random Forest training, cross-validation, and threshold tuning.
 
-Algorithm: RandomForestClassifier (scikit-learn 1.4)
+Architecture: ImbPipeline(SimpleImputer -> SMOTE -> RandomForestClassifier)
+SMOTE runs INSIDE each CV fold so no synthetic points from test events leak
+into training folds. Imputation statistics are also fold-local.
+
 Justification: Kuradusenge et al. (2020) demonstrated 98.74% accuracy on Rwandan
-terrain with RF + 5-day antecedent rainfall — selected over LR, DT, SVM, XGBoost.
+terrain with RF + 5-day antecedent rainfall.
 
-Hyperparameters:
-  n_estimators=500, max_depth=None, min_samples_leaf=5, class_weight='balanced'
-
-Threshold: tuned on validation set to minimize FNR while keeping FPR < 15%.
-Production alert threshold: 0.80 (deliberate — false alarm cost is high).
+Threshold: tuned on OOF predictions to minimize FNR while keeping FPR < 15%.
 """
 
 from __future__ import annotations
@@ -21,9 +20,11 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import (
-    classification_report,
     confusion_matrix,
     roc_auc_score,
 )
@@ -39,15 +40,18 @@ LABEL_COL = "label"
 ARTIFACTS_DIR = Path(__file__).parent.parent / "artifacts"
 
 
-def build_model() -> RandomForestClassifier:
-    return RandomForestClassifier(
-        n_estimators=500,
-        max_depth=None,
-        min_samples_leaf=5,
-        class_weight="balanced",
-        n_jobs=-1,
-        random_state=42,
-    )
+def build_pipeline(k_smote: int = 5) -> ImbPipeline:
+    return ImbPipeline([
+        ('imputer', SimpleImputer(strategy='median')),
+        ('smote',   SMOTE(k_neighbors=k_smote, random_state=42)),
+        ('clf',     RandomForestClassifier(
+            n_estimators=500,
+            max_depth=None,
+            min_samples_leaf=5,
+            n_jobs=-1,
+            random_state=42,
+        )),
+    ])
 
 
 def tune_threshold(
@@ -56,7 +60,7 @@ def tune_threshold(
     max_fpr: float = 0.15,
 ) -> float:
     """
-    Find the lowest probability threshold that keeps FPR ≤ max_fpr.
+    Find the lowest probability threshold that keeps FPR <= max_fpr.
     If no such threshold exists, returns the threshold with minimum FNR.
     """
     best_threshold = 0.50
@@ -71,7 +75,7 @@ def tune_threshold(
             best_fnr = fnr
             best_threshold = float(t)
 
-    logger.info("Tuned threshold: %.2f → FNR=%.4f", best_threshold, best_fnr)
+    logger.info("Tuned threshold: %.2f  FNR=%.4f", best_threshold, best_fnr)
     return best_threshold
 
 
@@ -82,9 +86,9 @@ def train(
     """
     Full training pipeline:
       1. Load training matrix
-      2. 5-fold stratified CV → OOF predictions
+      2. 5-fold stratified CV -> OOF predictions (pipeline runs inside each fold)
       3. Tune threshold on OOF
-      4. Refit on full data
+      4. Refit pipeline on full data
       5. Save model + metadata
 
     Returns metrics dict.
@@ -97,18 +101,19 @@ def train(
     available = [c for c in FEATURE_COLS if c in df.columns]
     missing = set(FEATURE_COLS) - set(available)
     if missing:
-        logger.warning("Missing feature columns: %s — they will be excluded from training", missing)
+        logger.warning("Missing feature columns: %s -- excluded from training", missing)
 
-    X = df[available].values
+    X = df[available].values  # NaN intact -- pipeline imputes per fold
     y = df[LABEL_COL].values
 
     logger.info("Training data: %d rows, %d features, %.1f%% positive",
                 len(df), len(available), 100 * y.mean())
 
-    model = build_model()
+    k_smote = min(5, int((y == 1).sum()) - 1)
+    model = build_pipeline(k_smote=k_smote)
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    logger.info("Running 5-fold stratified cross-validation...")
+    logger.info("Running 5-fold stratified CV (ImbPipeline: imputer -> SMOTE -> RF)...")
     oof_probs = cross_val_predict(model, X, y, cv=skf, method="predict_proba")[:, 1]
 
     oof_preds_default = (oof_probs >= 0.50).astype(int)
@@ -121,7 +126,6 @@ def train(
     logger.info("CV AUC=%.4f  FNR(0.50)=%.4f  FPR(0.50)=%.4f",
                 cv_metrics["cv_auc"], cv_metrics["cv_fnr_at_0.50"], cv_metrics["cv_fpr_at_0.50"])
 
-    # Tune threshold on OOF predictions
     tuned_threshold = tune_threshold(y, oof_probs, max_fpr=0.15)
 
     oof_preds_tuned = (oof_probs >= tuned_threshold).astype(int)
@@ -134,11 +138,6 @@ def train(
         "cv_recall_tuned": tp2 / (tp2 + fn2 + 1e-9),
     }
 
-    # Use the CV-tuned threshold as the production threshold.
-    # With a small positive-sample set (n=4 events), raw probabilities are constrained
-    # well below 0.80 by the forest consensus mechanism; the CV threshold is the
-    # statistically correct operating point. As more labelled events are added,
-    # this will naturally shift upward toward a higher-confidence threshold.
     PRODUCTION_THRESHOLD = tuned_threshold
     oof_alert = (oof_probs >= PRODUCTION_THRESHOLD).astype(int)
     tn3, fp3, fn3, tp3 = confusion_matrix(y, oof_alert, labels=[0, 1]).ravel()
@@ -149,17 +148,24 @@ def train(
     }
 
     # Refit on full training data
-    logger.info("Refitting on full dataset...")
+    logger.info("Refitting pipeline on full dataset...")
     model.fit(X, y)
 
-    # Feature importances
-    importances = dict(zip(available, model.feature_importances_.tolist()))
+    # Feature importances from the RF step inside the pipeline
+    _clf = model.named_steps['clf']
+    if hasattr(_clf, 'feature_importances_'):
+        _imp = _clf.feature_importances_.tolist()
+    elif hasattr(_clf, 'coef_'):
+        _imp = np.abs(_clf.coef_[0]).tolist()
+    else:
+        _imp = [1.0 / len(available)] * len(available)
+    importances = dict(zip(available, _imp))
     importances_sorted = dict(sorted(importances.items(), key=lambda x: x[1], reverse=True))
 
     # Save model
     model_path = artifacts_dir / "rf_model.joblib"
     joblib.dump(model, model_path)
-    logger.info("Model saved → %s", model_path)
+    logger.info("Model saved -> %s", model_path)
 
     # Save metadata
     metadata = {
@@ -167,6 +173,7 @@ def train(
         "production_threshold": PRODUCTION_THRESHOLD,
         "tuned_threshold": tuned_threshold,
         "feature_importances": importances_sorted,
+        "smote_in_pipeline": True,
         **cv_metrics,
         **tuned_metrics,
         **alert_metrics,
@@ -174,7 +181,7 @@ def train(
     meta_path = artifacts_dir / "model_metadata.json"
     with open(meta_path, "w") as f:
         json.dump(metadata, f, indent=2)
-    logger.info("Metadata saved → %s", meta_path)
+    logger.info("Metadata saved -> %s", meta_path)
 
     logger.info(
         "Training complete. FNR at alert threshold: %.4f (target <0.05), "
