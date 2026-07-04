@@ -42,6 +42,25 @@ async def get_alerts(
     return {"total": total, "skip": skip, "limit": limit, "alerts": alerts}
 
 
+@router.get("/alerts/stats")
+async def get_alert_stats():
+    """Summary stats for the feedback dashboard."""
+    db = get_db()
+    total = await db.alert_records.count_documents({})
+    confirmed = await db.alert_records.count_documents({"feedback": "CONFIRMED"})
+    denied = await db.alert_records.count_documents({"feedback": "DENIED"})
+    pending_feedback = await db.alert_records.count_documents({"feedback": None})
+    failed = await db.alert_records.count_documents({"delivery_status": "failed"})
+    return {
+        "total_alerts": total,
+        "confirmed": confirmed,
+        "denied": denied,
+        "awaiting_feedback": pending_feedback,
+        "delivery_failed": failed,
+        "confirmation_rate": round(confirmed / total * 100, 1) if total > 0 else 0,
+    }
+
+
 @router.post("/sms/callback")
 async def sms_inbound_webhook(request: Request):
     """

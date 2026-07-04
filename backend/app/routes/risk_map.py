@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
@@ -48,6 +48,7 @@ async def get_risk_map(run_date: date | None = Query(default=None)):
             "properties": {
                 "unit_id": pred["slope_unit_id"],
                 "district": unit.get("district", ""),
+                "sector": unit.get("sector", ""),
                 "risk_probability": prob,
                 "risk_level": risk_level,
                 "alert_triggered": pred["alert_triggered"],
@@ -61,3 +62,24 @@ async def get_risk_map(run_date: date | None = Query(default=None)):
         "features": features,
         "metadata": {"date": str(run_date), "unit_count": len(features)},
     })
+
+
+@router.get("/units/{unit_id}/rainfall")
+async def get_unit_rainfall(unit_id: int, days: int = Query(default=10, le=30)):
+    """Returns last N days of daily rainfall for a slope unit — used for popup sparkline."""
+    db = get_db()
+    end = datetime.utcnow().date()
+    start = end - timedelta(days=days)
+
+    records = await db.rainfall_records.find(
+        {
+            "slope_unit_id": unit_id,
+            "date": {"$gte": start.isoformat(), "$lte": end.isoformat()},
+        },
+        sort=[("date", 1)],
+    ).to_list(length=days + 1)
+
+    return {
+        "unit_id": unit_id,
+        "days": [{"date": r["date"], "daily_mm": round(r.get("daily_mm", 0), 1)} for r in records],
+    }

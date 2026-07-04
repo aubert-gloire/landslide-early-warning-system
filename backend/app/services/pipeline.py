@@ -66,7 +66,7 @@ class DataPipeline:
         slope_units = self._get_slope_units()
         return builder.build_inference_row(slope_units, rainfall_df)
 
-    async def run_daily(self) -> dict:
+    async def run_daily(self, log_fn=None) -> dict:
         """
         Full daily pipeline:
         1. Fetch CHIRPS rainfall
@@ -74,31 +74,65 @@ class DataPipeline:
         3. Run RF inference per slope unit
         4. Write all predictions to MongoDB
         5. Send SMS + write AlertRecord for units with prob ≥ threshold
+
+        log_fn: optional async callable(str) — receives progress messages for live streaming.
         """
-        logger.info("=== Daily pipeline starting ===")
+        async def log(msg):
+            ts = datetime.now().strftime("%H:%M:%S")
+            entry = f"[{ts}] {msg}"
+            logger.info(msg)
+            if log_fn:
+                await log_fn(entry)
+
+        await log("Pipeline starting…")
         run_date = date.today()
         db = get_db()
+
+        await log("Loading Random Forest model…")
         model = self._get_model()
+        threshold = self.settings.alert_probability_threshold
+        await log(f"Model ready — alert threshold: {threshold}")
 
         # Step 1 & 2
+        await log("Fetching CHIRPS v2 rainfall from UCSB Climate Hazards Center…")
         rainfall_df = self.fetch_chirps(run_date)
+        max_rain = float(rainfall_df["antecedent_5day_mm"].max()) if len(rainfall_df) else 0
+        await log(f"Rainfall fetched — {len(rainfall_df)} units, max 5-day antecedent: {max_rain:.1f} mm")
+
+        await log("Building feature matrix (terrain + NDVI + soil + rainfall)…")
         feature_df = self.build_feature_matrix(rainfall_df)
+        await log(f"Feature matrix ready — {len(feature_df)} units × 8 features")
 
         # Step 3 — inference
+        await log("Scoring all slope units with Random Forest…")
         predictions_df = model.predict(feature_df)
+        n_alerts = int(predictions_df["alert_triggered"].sum())
+        max_prob = float(predictions_df["risk_probability"].max())
+        await log(
+            f"Scoring complete — {n_alerts} units above threshold "
+            f"(highest risk: {max_prob*100:.1f}%)"
+        )
 
-        # Merge district info from slope units
-        slope_units = self._get_slope_units()[["unit_id", "district"]]
+        # Merge district + sector info from slope units
+        slope_units = self._get_slope_units()[["unit_id", "district", "sector"] if "sector" in self._get_slope_units().columns else ["unit_id", "district"]]
         predictions_df = predictions_df.merge(slope_units, on="unit_id", how="left")
 
+        from .sms import get_alert_level
+
         # Step 4 — write all predictions
+        await log("Saving predictions to MongoDB…")
         prediction_docs = []
         for _, row in predictions_df.iterrows():
+            prob = float(row["risk_probability"])
+            alert_level, _ = get_alert_level(prob)
             doc = {
                 "slope_unit_id": int(row["unit_id"]),
                 "date": run_date.isoformat(),
-                "risk_probability": float(row["risk_probability"]),
+                "risk_probability": prob,
                 "alert_triggered": bool(row["alert_triggered"]),
+                "alert_level": alert_level if bool(row["alert_triggered"]) else None,
+                "district": str(row.get("district", "Unknown")),
+                "sector": str(row.get("sector", "")),
                 "top_features": list(row["top_features"]),
                 "created_at": datetime.utcnow().isoformat(),
             }
@@ -106,34 +140,46 @@ class DataPipeline:
 
         if prediction_docs:
             await db.predictions.insert_many(prediction_docs)
+        await log(f"Saved {len(prediction_docs)} predictions to MongoDB")
 
         # Step 5 — SMS for high-risk units
         alert_rows = predictions_df[predictions_df["alert_triggered"]]
         alert_count = 0
-        for _, row in alert_rows.iterrows():
-            district = row.get("district", "Unknown")
-            recipients = await db.recipients.find(
-                {"district": district, "active": True}
-            ).to_list(length=100)
 
-            # Find the prediction_id we just wrote
-            pred_doc = await db.predictions.find_one(
-                {"slope_unit_id": int(row["unit_id"]), "date": run_date.isoformat()},
-                sort=[("created_at", -1)],
-            )
-            prediction_id = str(pred_doc["_id"]) if pred_doc else "unknown"
+        if alert_rows.empty:
+            await log("No units above alert threshold — no SMS dispatched")
+        else:
+            await log(f"Dispatching SMS alerts for {len(alert_rows)} high-risk units…")
+            for _, row in alert_rows.iterrows():
+                district = row.get("district", "Unknown")
+                sector = row.get("sector", "")
+                recipients = await db.recipients.find(
+                    {"district": district, "active": True}
+                ).to_list(length=100)
 
-            for recipient in recipients:
-                await send_alert(
-                    phone=recipient["phone"],
-                    recipient_id=recipient["recipient_id"],
-                    prediction_id=prediction_id,
-                    district=district,
-                    unit_id=int(row["unit_id"]),
-                    risk_probability=float(row["risk_probability"]),
-                    top_features=list(row["top_features"]),
+                pred_doc = await db.predictions.find_one(
+                    {"slope_unit_id": int(row["unit_id"]), "date": run_date.isoformat()},
+                    sort=[("created_at", -1)],
                 )
-                alert_count += 1
+                prediction_id = str(pred_doc["_id"]) if pred_doc else "unknown"
+
+                for recipient in recipients:
+                    await send_alert(
+                        phone=recipient["phone"],
+                        recipient_id=recipient["recipient_id"],
+                        prediction_id=prediction_id,
+                        district=district,
+                        sector=sector,
+                        unit_id=int(row["unit_id"]),
+                        risk_probability=float(row["risk_probability"]),
+                        top_features=list(row["top_features"]),
+                    )
+                    location = f"{district} / {sector} sector" if sector else district
+                    await log(
+                        f"SMS → {recipient['name']} ({location}, unit #{int(row['unit_id'])}, "
+                        f"{int(row['risk_probability']*100)}% risk)"
+                    )
+                    alert_count += 1
 
         summary = {
             "run_date": run_date.isoformat(),
@@ -141,5 +187,6 @@ class DataPipeline:
             "alerts_triggered": int(alert_rows.shape[0]),
             "sms_sent": alert_count,
         }
+        await log(f"Pipeline complete — {alert_count} SMS sent, {len(predictions_df)} units processed")
         logger.info("=== Daily pipeline complete: %s ===", summary)
         return summary

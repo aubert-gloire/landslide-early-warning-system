@@ -1,12 +1,16 @@
 """
-POST /api/trigger — manually trigger a prediction run.
-Used for demos, testing with different rainfall values, and the GitHub Actions daily cron.
+POST /api/trigger  — manually trigger a prediction run (returns JSON summary).
+GET  /api/trigger/stream — same pipeline but streams live log lines via SSE.
+Used for demos, testing, and the GitHub Actions daily cron.
 """
 
+import asyncio
+import json
 from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..config import Settings, get_settings
@@ -82,3 +86,38 @@ async def trigger_prediction(
         raise HTTPException(status_code=500, detail=f"Pipeline error: {e}")
 
     return summary
+
+
+@router.get("/trigger/stream")
+async def trigger_stream():
+    """
+    SSE endpoint — runs the pipeline and streams live log lines to the browser.
+    The frontend connects with EventSource and renders each line as it arrives.
+    """
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def log_fn(msg: str):
+        await queue.put({"type": "log", "message": msg})
+
+    async def run():
+        try:
+            pipeline = get_pipeline()
+            result = await pipeline.run_daily(log_fn=log_fn)
+            await queue.put({"type": "done", "result": result})
+        except Exception as e:
+            await queue.put({"type": "error", "message": str(e)})
+
+    asyncio.create_task(run())
+
+    async def generate():
+        while True:
+            event = await queue.get()
+            yield f"data: {json.dumps(event)}\n\n"
+            if event["type"] in ("done", "error"):
+                break
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

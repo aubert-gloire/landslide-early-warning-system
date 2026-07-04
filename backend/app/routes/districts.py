@@ -45,11 +45,28 @@ async def get_districts():
             {"prediction_id": {"$in": [str(p) for p in pred_ids_recent]}}
         )
 
+        prob = top_pred["risk_probability"] if top_pred else None
+        alert_level = None
+        if prob and prob >= 0.80:
+            alert_level = "EMERGENCY"
+        elif prob and prob >= 0.60:
+            alert_level = "WARNING"
+        elif prob and prob >= 0.40:
+            alert_level = "WATCH"
+
+        # Get sector name for highest risk unit
+        highest_sector = None
+        if top_pred:
+            unit_doc = await db.slope_units.find_one({"unit_id": top_pred["slope_unit_id"]})
+            highest_sector = unit_doc.get("sector") if unit_doc else None
+
         summaries.append({
             "district": district,
             "unit_count": len(unit_ids),
-            "highest_risk_probability": top_pred["risk_probability"] if top_pred else None,
+            "highest_risk_probability": prob,
             "highest_risk_unit_id": top_pred["slope_unit_id"] if top_pred else None,
+            "highest_risk_sector": highest_sector,
+            "alert_level": alert_level,
             "recent_alert_count": alert_count,
             "last_update": latest_date,
         })

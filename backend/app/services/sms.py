@@ -19,10 +19,45 @@ from ..database import get_db
 logger = logging.getLogger(__name__)
 
 
+def _patch_requests_ssl():
+    """
+    Local antivirus/proxy intercepts TLS and breaks verify=True for AT sandbox.
+    Patch requests.Session so all AT SDK calls use verify=False in dev.
+    Render (production) has clean SSL — this function is never called there.
+    """
+    import requests
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    _orig = requests.Session.request
+
+    def _no_verify(self, method, url, **kwargs):
+        kwargs.setdefault("verify", False)
+        return _orig(self, method, url, **kwargs)
+
+    requests.Session.request = _no_verify
+
+
 def _init_at():
     settings = get_settings()
+    if not settings.is_production:
+        _patch_requests_ssl()
     africastalking.initialize(settings.at_username, settings.at_api_key)
     return africastalking.SMS
+
+
+ALERT_LEVELS = {
+    "WATCH":      (0.40, 0.60, "Elevated risk detected. Monitor closely."),
+    "WARNING":    (0.60, 0.80, "High risk. Prepare evacuation advisory."),
+    "EMERGENCY":  (0.80, 1.01, "CRITICAL. Activate MINEMA protocols immediately."),
+}
+
+
+def get_alert_level(prob: float) -> tuple[str, str]:
+    """Returns (level_name, action_text) for a given probability."""
+    for level, (lo, hi, action) in ALERT_LEVELS.items():
+        if lo <= prob < hi:
+            return level, action
+    return "WATCH", ALERT_LEVELS["WATCH"][2]
 
 
 def build_alert_message(
@@ -30,15 +65,20 @@ def build_alert_message(
     unit_id: int,
     risk_probability: float,
     top_features: list[tuple[str, float]],
+    sector: str = "",
 ) -> str:
-    feature_str = ", ".join(f[0].replace("_", " ") for f in top_features[:2])
     prob_pct = int(risk_probability * 100)
+    level, action = get_alert_level(risk_probability)
+    drivers = " | ".join(f[0].replace("_", " ") for f in top_features[:2])
+    location = f"{district} / {sector} sector" if sector else district
     return (
-        f"[LSEWS ALERT] {district} — Slope unit {unit_id}: "
-        f"{prob_pct}% landslide risk. "
-        f"Primary factors: {feature_str}. "
-        f"Reply YES {unit_id} to confirm or NO {unit_id} to deny. "
-        f"This is decision-support only — follow official MINEMA protocols."
+        f"[LSEWS] {level}\n"
+        f"Location: {location}\n"
+        f"Unit: #{unit_id} | Risk: {prob_pct}%\n"
+        f"{action}\n"
+        f"Drivers: {drivers}\n"
+        f"Reply YES {unit_id} to confirm / NO {unit_id} to deny.\n"
+        f"Decision-support only. Follow MINEMA protocols."
     )
 
 
@@ -50,13 +90,14 @@ async def send_alert(
     unit_id: int,
     risk_probability: float,
     top_features: list[tuple[str, float]],
+    sector: str = "",
 ) -> str:
     """Send SMS alert and write AlertRecord to MongoDB. Returns alert_id."""
     from ..models.alert import AlertRecord
     import uuid
 
     settings = get_settings()
-    message = build_alert_message(district, unit_id, risk_probability, top_features)
+    message = build_alert_message(district, unit_id, risk_probability, top_features, sector)
     alert_id = str(uuid.uuid4())
 
     alert = AlertRecord(
@@ -65,6 +106,9 @@ async def send_alert(
         recipient_id=recipient_id,
         message=message,
         delivery_status="pending",
+        district=district,
+        slope_unit_id=unit_id,
+        risk_probability=risk_probability,
     )
 
     db = get_db()
