@@ -2,9 +2,11 @@ import { useState } from "react";
 import RiskMap from "./components/RiskMap";
 import AlertTable from "./components/AlertTable";
 import DistrictCards from "./components/DistrictCards";
+import PipelineLog from "./components/PipelineLog";
+import PredictPanel from "./components/PredictPanel";
 import { triggerPipeline } from "./hooks/useApi";
 
-const TABS = ["Risk Map", "Alert History", "Districts"];
+const TABS = ["Risk Map", "Predict", "Alert History", "Districts"];
 
 const styles = {
   root: { minHeight: "100vh", background: "#0f1117", color: "#e2e8f0", display: "flex", flexDirection: "column" },
@@ -49,21 +51,16 @@ const styles = {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("Risk Map");
-  const [triggering, setTriggering] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const [toast, setToast] = useState(null);
 
-  async function handleTrigger() {
-    setTriggering(true);
-    try {
-      const result = await triggerPipeline({ dry_run: false });
-      setToast(`Pipeline ran: ${result.units_processed} units, ${result.alerts_triggered} alerts`);
-      setTimeout(() => setToast(null), 4000);
-    } catch (e) {
-      setToast(`Error: ${e.message}`);
-      setTimeout(() => setToast(null), 4000);
-    } finally {
-      setTriggering(false);
-    }
+  function handleTrigger() {
+    setShowLog(true);
+  }
+
+  function handlePipelineDone(result) {
+    setToast(`Done — ${result.units_processed} units, ${result.alerts_triggered} alerts`);
+    setTimeout(() => setToast(null), 5000);
   }
 
   return (
@@ -79,20 +76,38 @@ export default function App() {
           ))}
         </nav>
         <div style={styles.actions}>
-          <button style={styles.triggerBtn} onClick={handleTrigger} disabled={triggering}>
-            {triggering ? "Running…" : "Run Pipeline"}
+          <button style={styles.triggerBtn} onClick={handleTrigger} disabled={showLog}>
+            {showLog ? "Running…" : "Run Pipeline"}
           </button>
         </div>
       </header>
 
       <main style={styles.content}>
-        <div style={styles.notice}>
-          Decision-support system only. All alerts supplement — and do not replace — official MINEMA and Meteo Rwanda protocols.
-        </div>
+        {(activeTab === "Risk Map" || activeTab === "Predict") && (
+          <div style={styles.notice}>
+            Decision-support system only. All alerts supplement — and do not replace — official MINEMA and Meteo Rwanda protocols.
+          </div>
+        )}
+
+        {showLog && (
+          <div style={{ marginBottom: 16 }}>
+            <PipelineLog
+              onDone={handlePipelineDone}
+              onClose={() => setShowLog(false)}
+            />
+          </div>
+        )}
 
         {activeTab === "Risk Map" && (
           <div style={styles.mapWrap}>
             <RiskMap />
+          </div>
+        )}
+
+        {activeTab === "Predict" && (
+          <div>
+            <div style={styles.sectionTitle}>Single-Point Prediction &amp; Model Explainability</div>
+            <PredictPanel />
           </div>
         )}
 

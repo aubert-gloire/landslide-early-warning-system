@@ -106,6 +106,17 @@ export default function DistrictCards() {
               </div>
             </div>
 
+            {d.alert_level && (
+              <div style={{
+                marginBottom: 10, padding: "6px 10px", borderRadius: 6,
+                background: d.alert_level === "EMERGENCY" ? "#450a0a" : d.alert_level === "WARNING" ? "#431407" : "#422006",
+                fontSize: 12, fontWeight: 600,
+                color: d.alert_level === "EMERGENCY" ? "#fca5a5" : d.alert_level === "WARNING" ? "#fdba74" : "#fcd34d",
+              }}>
+                ⚠ {d.alert_level} — {d.highest_risk_sector || ""}
+              </div>
+            )}
+
             <div style={styles.meta}>
               Last update: {d.last_update || "No data yet"}
             </div>

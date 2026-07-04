@@ -1,6 +1,33 @@
 import { useState } from "react";
 import { useApi } from "../hooks/useApi";
 
+function FeedbackStats() {
+  const { data } = useApi("/api/alerts/stats");
+  if (!data) return null;
+  const { total_alerts, confirmed, denied, awaiting_feedback, confirmation_rate } = data;
+  return (
+    <div style={{
+      display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap",
+    }}>
+      {[
+        { label: "Total Alerts Sent", value: total_alerts, color: "#94a3b8" },
+        { label: "Confirmed by Officers", value: confirmed, color: "#86efac" },
+        { label: "Denied by Officers", value: denied, color: "#fca5a5" },
+        { label: "Awaiting Feedback", value: awaiting_feedback, color: "#fcd34d" },
+        { label: "Confirmation Rate", value: `${confirmation_rate}%`, color: "#93c5fd" },
+      ].map(({ label, value, color }) => (
+        <div key={label} style={{
+          flex: 1, minWidth: 120, background: "#1e293b",
+          border: "1px solid #334155", borderRadius: 8, padding: "10px 14px",
+        }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const STATUS_COLORS = {
   sent:      { bg: "#064e3b", text: "#6ee7b7" },
   delivered: { bg: "#14532d", text: "#86efac" },
@@ -55,6 +82,7 @@ export default function AlertTable() {
 
   return (
     <div>
+      <FeedbackStats />
       <div style={styles.controls}>
         <select
           style={styles.input}
@@ -84,7 +112,9 @@ export default function AlertTable() {
             {loading ? (
               <tr><td colSpan={6} style={styles.empty}>Loading…</td></tr>
             ) : alerts.length === 0 ? (
-              <tr><td colSpan={6} style={styles.empty}>No alerts found</td></tr>
+              <tr><td colSpan={6} style={styles.empty}>
+                No alerts found{district ? ` for ${district}` : ""} — alerts are dispatched when a slope unit exceeds the production risk threshold
+              </td></tr>
             ) : alerts.map((a) => {
               const statusStyle = STATUS_COLORS[a.delivery_status] || STATUS_COLORS.pending;
               const feedbackStyle = a.feedback ? FEEDBACK_COLORS[a.feedback] : null;
