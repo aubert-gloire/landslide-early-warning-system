@@ -64,7 +64,14 @@ class RFModel:
         alerts = probs >= self.production_threshold
 
         # Top 3 features by importance for the alert payload
-        importances = self._model.feature_importances_
+        # Support both bare classifiers and imblearn/sklearn Pipelines
+        _clf = self._model.named_steps['clf'] if hasattr(self._model, 'named_steps') else self._model
+        if hasattr(_clf, 'feature_importances_'):
+            importances = _clf.feature_importances_
+        elif hasattr(_clf, 'coef_'):
+            importances = np.abs(_clf.coef_[0])
+        else:
+            importances = np.ones(len(available)) / len(available)
         top_idx = np.argsort(importances)[::-1][:3]
         top_features = [
             (available[i], round(float(importances[i]), 4))

@@ -19,6 +19,7 @@ from .config import get_settings
 from .database import close_client, ensure_indexes
 from .routes.alerts import router as alerts_router
 from .routes.districts import router as districts_router
+from .routes.predict import router as predict_router
 from .routes.risk_map import router as risk_map_router
 from .routes.trigger import router as trigger_router
 from .services.pipeline import DataPipeline
@@ -59,6 +60,7 @@ app.include_router(risk_map_router, prefix="/api")
 app.include_router(alerts_router, prefix="/api")
 app.include_router(districts_router, prefix="/api")
 app.include_router(trigger_router, prefix="/api")
+app.include_router(predict_router, prefix="/api")
 
 
 @app.get("/health")
