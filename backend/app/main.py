@@ -52,7 +52,7 @@ _cors_origin = settings.cors_origin if settings.is_production else "*"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[_cors_origin],
-    allow_credentials=True,
+    allow_credentials=_cors_origin != "*",
     allow_methods=["*"],
     allow_headers=["*"],
 )
