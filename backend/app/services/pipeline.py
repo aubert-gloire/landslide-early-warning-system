@@ -114,7 +114,11 @@ class DataPipeline:
         )
 
         # Merge district + sector info from slope units
-        slope_units = self._get_slope_units()[["unit_id", "district", "sector"] if "sector" in self._get_slope_units().columns else ["unit_id", "district"]]
+        _su = self._get_slope_units()
+        _cols = ["unit_id", "district"]
+        if "sector" in _su.columns: _cols.append("sector")
+        if "centroid_lat" in _su.columns: _cols += ["centroid_lat", "centroid_lon"]
+        slope_units = _su[_cols]
         predictions_df = predictions_df.merge(slope_units, on="unit_id", how="left")
 
         from .sms import get_alert_level
@@ -173,6 +177,8 @@ class DataPipeline:
                         unit_id=int(row["unit_id"]),
                         risk_probability=float(row["risk_probability"]),
                         top_features=list(row["top_features"]),
+                        centroid_lat=float(row["centroid_lat"]) if "centroid_lat" in row and row["centroid_lat"] is not None else None,
+                        centroid_lon=float(row["centroid_lon"]) if "centroid_lon" in row and row["centroid_lon"] is not None else None,
                     )
                     location = f"{district} / {sector} sector" if sector else district
                     await log(

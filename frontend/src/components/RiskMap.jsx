@@ -69,6 +69,23 @@ export default function RiskMap() {
     };
   }, []);
 
+  // Add district boundary overlay once
+  useEffect(() => {
+    if (!mapInstance.current) return;
+    fetch(`${API_BASE}/api/boundary`)
+      .then(r => r.ok ? r.json() : null)
+      .then(geojson => {
+        if (!geojson || !mapInstance.current) return;
+        L.geoJSON(geojson, {
+          style: { color: "#f8fafc", weight: 2, fillOpacity: 0, dashArray: "4 3" },
+          onEachFeature: (f, layer) => {
+            if (f.properties?.NAME_2) layer.bindTooltip(f.properties.NAME_2, { permanent: false, className: "" });
+          },
+        }).addTo(mapInstance.current);
+      })
+      .catch(() => {});
+  }, []);
+
   // Update GeoJSON layer when data arrives
   useEffect(() => {
     if (!mapInstance.current || !data?.features) return;

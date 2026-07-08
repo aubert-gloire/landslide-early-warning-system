@@ -66,19 +66,26 @@ def build_alert_message(
     risk_probability: float,
     top_features: list[tuple[str, float]],
     sector: str = "",
+    centroid_lat: float | None = None,
+    centroid_lon: float | None = None,
 ) -> str:
     prob_pct = int(risk_probability * 100)
     level, action = get_alert_level(risk_probability)
     drivers = " | ".join(f[0].replace("_", " ") for f in top_features[:2])
     location = f"{district} / {sector} sector" if sector else district
+    gps_line = (
+        f"GPS: maps.google.com/?q={centroid_lat:.4f},{centroid_lon:.4f}\n"
+        if centroid_lat is not None and centroid_lon is not None
+        else ""
+    )
     return (
         f"[LSEWS] {level}\n"
         f"Location: {location}\n"
+        f"{gps_line}"
         f"Unit: #{unit_id} | Risk: {prob_pct}%\n"
         f"{action}\n"
         f"Drivers: {drivers}\n"
-        f"Reply YES {unit_id} to confirm / NO {unit_id} to deny.\n"
-        f"Decision-support only. Follow MINEMA protocols."
+        f"Reply YES {unit_id} confirm / NO {unit_id} deny."
     )
 
 
@@ -91,13 +98,15 @@ async def send_alert(
     risk_probability: float,
     top_features: list[tuple[str, float]],
     sector: str = "",
+    centroid_lat: float | None = None,
+    centroid_lon: float | None = None,
 ) -> str:
     """Send SMS alert and write AlertRecord to MongoDB. Returns alert_id."""
     from ..models.alert import AlertRecord
     import uuid
 
     settings = get_settings()
-    message = build_alert_message(district, unit_id, risk_probability, top_features, sector)
+    message = build_alert_message(district, unit_id, risk_probability, top_features, sector, centroid_lat, centroid_lon)
     alert_id = str(uuid.uuid4())
 
     alert = AlertRecord(

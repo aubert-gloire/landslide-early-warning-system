@@ -1,11 +1,39 @@
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 from ..database import get_db
+from ..config import get_settings
 
 router = APIRouter()
+
+_boundary_cache: dict | None = None
+
+
+@router.get("/boundary")
+async def get_rwanda_boundary():
+    """Returns simplified Rwanda Northern Province district boundaries for map overlay."""
+    global _boundary_cache
+    if _boundary_cache is not None:
+        return JSONResponse(_boundary_cache)
+
+    try:
+        import geopandas as gpd
+        settings = get_settings()
+        gpkg = Path(settings.data_processed_dir) / "gadm41_RWA_3.gpkg"
+        if not gpkg.exists():
+            return JSONResponse({"type": "FeatureCollection", "features": []})
+        gdf = gpd.read_file(gpkg)
+        # Dissolve to district level and simplify geometry for fast transfer
+        districts = gdf.dissolve(by="NAME_2").reset_index()[["NAME_2", "geometry"]]
+        districts["geometry"] = districts["geometry"].simplify(0.005)
+        geojson = districts.__geo_interface__
+        _boundary_cache = geojson
+        return JSONResponse(geojson)
+    except Exception:
+        return JSONResponse({"type": "FeatureCollection", "features": []})
 
 
 @router.get("/risk-map")
