@@ -12,6 +12,7 @@ python-multipart>=0.0.9
 
 # ML / data
 scikit-learn>=1.4.0
+xgboost>=2.0.0
 pandas>=2.1.0
 numpy>=1.26.0
 joblib>=1.4.0

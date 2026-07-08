@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { useApi } from "../hooks/useApi";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+
 // Risk colour scale — high contrast for field use
 const RISK_COLORS = {
   critical: "#dc2626",
@@ -113,7 +115,7 @@ export default function RiskMap() {
           // Fetch sparkline data
           let sparkHtml = "";
           try {
-            const res = await fetch(`/api/units/${p.unit_id}/rainfall?days=10`);
+            const res = await fetch(`${API_BASE}/api/units/${p.unit_id}/rainfall?days=10`);
             if (res.ok) {
               const rain = await res.json();
               const vals = rain.days.map(d => d.daily_mm);
