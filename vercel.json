@@ -1,7 +1,5 @@
 {
-  "framework": "vite",
-  "buildCommand": "cd frontend && npm install && npm run build",
+  "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "echo skip",
   "rewrites": [{ "source": "/(.*)", "destination": "/" }]
 }
