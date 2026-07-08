@@ -158,7 +158,7 @@ class DataPipeline:
                 district = row.get("district", "Unknown")
                 sector = row.get("sector", "")
                 recipients = await db.recipients.find(
-                    {"district": district, "active": True}
+                    {"$or": [{"district": district}, {"districts": district}], "active": True}
                 ).to_list(length=100)
 
                 pred_doc = await db.predictions.find_one(
