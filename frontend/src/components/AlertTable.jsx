@@ -6,22 +6,20 @@ function FeedbackStats() {
   if (!data) return null;
   const { total_alerts, confirmed, denied, awaiting_feedback, confirmation_rate } = data;
   return (
-    <div style={{
-      display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap",
-    }}>
+    <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
       {[
-        { label: "Total Alerts Sent", value: total_alerts, color: "#94a3b8" },
-        { label: "Confirmed by Officers", value: confirmed, color: "#86efac" },
-        { label: "Denied by Officers", value: denied, color: "#fca5a5" },
-        { label: "Awaiting Feedback", value: awaiting_feedback, color: "#fcd34d" },
-        { label: "Confirmation Rate", value: `${confirmation_rate}%`, color: "#93c5fd" },
+        { label: "Total Alerts Sent",      value: total_alerts,       color: "var(--chalk-dim)" },
+        { label: "Confirmed by Officers",  value: confirmed,           color: "var(--moss-text)" },
+        { label: "Denied by Officers",     value: denied,              color: "var(--ember-text)" },
+        { label: "Awaiting Feedback",      value: awaiting_feedback,   color: "var(--amber-text)" },
+        { label: "Confirmation Rate",      value: `${confirmation_rate}%`, color: "var(--storm-text)" },
       ].map(({ label, value, color }) => (
         <div key={label} style={{
-          flex: 1, minWidth: 120, background: "#1e293b",
-          border: "1px solid #334155", borderRadius: 8, padding: "10px 14px",
+          flex: 1, minWidth: 120, background: "var(--panel)",
+          border: "1px solid var(--line-strong)", borderRadius: 8, padding: "10px 14px",
         }}>
           <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
-          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{label}</div>
+          <div style={{ fontSize: 11, color: "var(--chalk-dim)", marginTop: 2 }}>{label}</div>
         </div>
       ))}
     </div>
@@ -29,15 +27,15 @@ function FeedbackStats() {
 }
 
 const STATUS_COLORS = {
-  sent:      { bg: "#064e3b", text: "#6ee7b7" },
-  delivered: { bg: "#14532d", text: "#86efac" },
-  pending:   { bg: "#1c1917", text: "#a8a29e" },
-  failed:    { bg: "#450a0a", text: "#fca5a5" },
+  sent:      { bg: "rgba(116,147,106,0.12)", text: "var(--moss-text)" },
+  delivered: { bg: "rgba(116,147,106,0.20)", text: "var(--moss-text)" },
+  pending:   { bg: "var(--panel-2)",          text: "var(--chalk-dim)" },
+  failed:    { bg: "rgba(194,75,58,0.15)",   text: "var(--ember-text)" },
 };
 
 const FEEDBACK_COLORS = {
-  CONFIRMED: { bg: "#1e3a5f", text: "#93c5fd" },
-  DENIED:    { bg: "#3f1f1f", text: "#f87171" },
+  CONFIRMED: { bg: "rgba(108,154,181,0.15)", text: "var(--storm-text)" },
+  DENIED:    { bg: "rgba(194,75,58,0.12)",   text: "var(--ember-text)" },
 };
 
 function formatDate(ts) {
@@ -49,20 +47,20 @@ const styles = {
   wrap: { overflowX: "auto" },
   controls: { display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" },
   input: {
-    background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0",
+    background: "var(--panel-2)", border: "1px solid var(--line-strong)", color: "var(--chalk)",
     padding: "6px 10px", borderRadius: 6, fontSize: 13,
   },
   table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-  th: { textAlign: "left", padding: "8px 12px", color: "#94a3b8", borderBottom: "1px solid #1e293b", whiteSpace: "nowrap" },
-  td: { padding: "10px 12px", borderBottom: "1px solid #1e293b", verticalAlign: "top" },
+  th: { textAlign: "left", padding: "8px 12px", color: "var(--chalk-dim)", borderBottom: "1px solid var(--line)", whiteSpace: "nowrap" },
+  td: { padding: "10px 12px", borderBottom: "1px solid var(--line)", verticalAlign: "top" },
   badge: (style) => ({
     display: "inline-block", padding: "2px 8px", borderRadius: 12,
     fontSize: 11, fontWeight: 600, background: style.bg, color: style.text,
   }),
-  empty: { color: "#64748b", padding: "32px 0", textAlign: "center" },
+  empty: { color: "var(--chalk-dim)", padding: "32px 0", textAlign: "center" },
   pagination: { display: "flex", gap: 8, marginTop: 14, alignItems: "center" },
   btn: {
-    background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0",
+    background: "var(--panel)", border: "1px solid var(--line-strong)", color: "var(--chalk)",
     padding: "4px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12,
   },
 };
@@ -92,12 +90,12 @@ export default function AlertTable() {
           {DISTRICTS.map((d) => <option key={d}>{d}</option>)}
         </select>
         <button style={styles.btn} onClick={refetch}>Refresh</button>
-        <span style={{ color: "#64748b", fontSize: 12, alignSelf: "center" }}>
+        <span style={{ color: "var(--chalk-dim)", fontSize: 12, alignSelf: "center" }}>
           {total} total alerts
         </span>
       </div>
 
-      {error && <div style={{ color: "#f87171", marginBottom: 12 }}>Error: {error}</div>}
+      {error && <div style={{ color: "var(--ember-text)", marginBottom: 12 }}>Error: {error}</div>}
 
       <div style={styles.wrap}>
         <table style={styles.table}>
@@ -121,9 +119,9 @@ export default function AlertTable() {
               const riskPct = a.risk_probability != null ? Math.round(a.risk_probability * 100) : null;
               return (
                 <tr key={a.alert_id}>
-                  <td style={{ ...styles.td, color: "#94a3b8", whiteSpace: "nowrap" }}>{formatDate(a.sent_at)}</td>
+                  <td style={{ ...styles.td, color: "var(--chalk-dim)", whiteSpace: "nowrap" }}>{formatDate(a.sent_at)}</td>
                   <td style={styles.td}>{a.district || "—"}</td>
-                  <td style={{ ...styles.td, fontFamily: "monospace", color: "#94a3b8" }}>{a.slope_unit_id || "—"}</td>
+                  <td style={{ ...styles.td, fontFamily: "'Space Mono', monospace", color: "var(--chalk-dim)" }}>{a.slope_unit_id || "—"}</td>
                   <td style={styles.td}>{riskPct != null ? `${riskPct}%` : "—"}</td>
                   <td style={styles.td}>
                     <span style={styles.badge(statusStyle)}>{a.delivery_status}</span>
@@ -131,7 +129,7 @@ export default function AlertTable() {
                   <td style={styles.td}>
                     {feedbackStyle
                       ? <span style={styles.badge(feedbackStyle)}>{a.feedback}</span>
-                      : <span style={{ color: "#475569" }}>Awaiting reply</span>
+                      : <span style={{ color: "var(--chalk-dim)" }}>Awaiting reply</span>
                     }
                   </td>
                 </tr>
@@ -144,7 +142,7 @@ export default function AlertTable() {
       {total > PAGE_SIZE && (
         <div style={styles.pagination}>
           <button style={styles.btn} disabled={page === 0} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span style={{ color: "#94a3b8", fontSize: 12 }}>Page {page + 1} of {Math.ceil(total / PAGE_SIZE)}</span>
+          <span style={{ color: "var(--chalk-dim)", fontSize: 12 }}>Page {page + 1} of {Math.ceil(total / PAGE_SIZE)}</span>
           <button style={styles.btn} disabled={(page + 1) * PAGE_SIZE >= total} onClick={() => setPage(p => p + 1)}>Next →</button>
         </div>
       )}

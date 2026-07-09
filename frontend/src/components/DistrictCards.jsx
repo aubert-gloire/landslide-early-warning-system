@@ -1,18 +1,18 @@
 import { useApi } from "../hooks/useApi";
 
 const DISTRICT_INFO = {
-  Gakenke: { color: "#0ea5e9" },
-  Burera:  { color: "#8b5cf6" },
-  Musanze: { color: "#f59e0b" },
-  Gicumbi: { color: "#10b981" },
+  Gakenke: { color: "#6C9AB5" },
+  Burera:  { color: "#74936A" },
+  Musanze: { color: "#C99A3E" },
+  Gicumbi: { color: "#C24B3A" },
 };
 
 function riskBg(prob) {
-  if (prob == null) return "#1e293b";
-  if (prob >= 0.80) return "#450a0a";
-  if (prob >= 0.60) return "#431407";
-  if (prob >= 0.40) return "#422006";
-  return "#14532d";
+  if (prob == null) return "var(--panel-2)";
+  if (prob >= 0.80) return "rgba(194,75,58,0.15)";
+  if (prob >= 0.60) return "rgba(201,154,62,0.12)";
+  if (prob >= 0.40) return "rgba(201,154,62,0.08)";
+  return "rgba(116,147,106,0.12)";
 }
 
 function riskLabel(prob) {
@@ -24,17 +24,25 @@ function riskLabel(prob) {
 }
 
 function riskTextColor(prob) {
-  if (prob == null) return "#64748b";
-  if (prob >= 0.80) return "#fca5a5";
-  if (prob >= 0.60) return "#fdba74";
-  if (prob >= 0.40) return "#fcd34d";
-  return "#86efac";
+  if (prob == null) return "var(--chalk-dim)";
+  if (prob >= 0.80) return "var(--ember-text)";
+  if (prob >= 0.60) return "var(--amber-text)";
+  if (prob >= 0.40) return "var(--amber-text)";
+  return "var(--moss-text)";
+}
+
+function riskBorderColor(prob) {
+  if (prob == null) return "var(--line)";
+  if (prob >= 0.80) return "rgba(194,75,58,0.4)";
+  if (prob >= 0.60) return "rgba(201,154,62,0.35)";
+  if (prob >= 0.40) return "rgba(201,154,62,0.25)";
+  return "rgba(116,147,106,0.3)";
 }
 
 const styles = {
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 },
   card: {
-    background: "#1e293b", border: "1px solid #334155",
+    background: "var(--panel)", border: "1px solid var(--line-strong)",
     borderRadius: 10, padding: "18px 20px",
   },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
@@ -43,16 +51,16 @@ const styles = {
     fontSize: 11, fontWeight: 700, letterSpacing: "0.05em",
     padding: "3px 10px", borderRadius: 20,
     background: riskBg(prob), color: riskTextColor(prob),
-    border: `1px solid ${riskTextColor(prob)}30`,
+    border: `1px solid ${riskBorderColor(prob)}`,
   }),
   stat: { marginBottom: 10 },
-  statLabel: { fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 },
+  statLabel: { fontSize: 11, color: "var(--chalk-dim)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
-  divider: { height: 1, background: "#334155", margin: "12px 0" },
-  meta: { fontSize: 11, color: "#64748b" },
+  divider: { height: 1, background: "var(--line-strong)", margin: "12px 0" },
+  meta: { fontSize: 11, color: "var(--chalk-dim)" },
   loadingCard: {
-    background: "#1e293b", border: "1px solid #334155",
-    borderRadius: 10, padding: "18px 20px", color: "#475569",
+    background: "var(--panel)", border: "1px solid var(--line-strong)",
+    borderRadius: 10, padding: "18px 20px", color: "var(--chalk-dim)",
   },
 };
 
@@ -68,12 +76,12 @@ export default function DistrictCards() {
     </div>
   );
 
-  if (error) return <div style={{ color: "#f87171" }}>Error loading districts: {error}</div>;
+  if (error) return <div style={{ color: "var(--ember-text)" }}>Error loading districts: {error}</div>;
 
   return (
     <div style={styles.grid}>
       {districts.map((d) => {
-        const info = DISTRICT_INFO[d.district] || { color: "#64748b" };
+        const info = DISTRICT_INFO[d.district] || { color: "var(--chalk-dim)" };
         const prob = d.highest_risk_probability;
 
         return (
@@ -92,7 +100,7 @@ export default function DistrictCards() {
 
             <div style={styles.stat}>
               <div style={styles.statLabel}>Slope units monitored</div>
-              <div style={{ ...styles.statValue, color: "#e2e8f0", fontSize: 15 }}>
+              <div style={{ ...styles.statValue, color: "var(--chalk)", fontSize: 15 }}>
                 {d.unit_count ?? "—"}
               </div>
             </div>
@@ -101,7 +109,7 @@ export default function DistrictCards() {
 
             <div style={styles.stat}>
               <div style={styles.statLabel}>Alerts (last 7 days)</div>
-              <div style={{ ...styles.statValue, color: d.recent_alert_count > 0 ? "#fca5a5" : "#e2e8f0", fontSize: 15 }}>
+              <div style={{ ...styles.statValue, color: d.recent_alert_count > 0 ? "var(--ember-text)" : "var(--chalk)", fontSize: 15 }}>
                 {d.recent_alert_count ?? 0}
               </div>
             </div>
@@ -109,9 +117,9 @@ export default function DistrictCards() {
             {d.alert_level && (
               <div style={{
                 marginBottom: 10, padding: "6px 10px", borderRadius: 6,
-                background: d.alert_level === "EMERGENCY" ? "#450a0a" : d.alert_level === "WARNING" ? "#431407" : "#422006",
+                background: d.alert_level === "EMERGENCY" ? "rgba(194,75,58,0.15)" : "rgba(201,154,62,0.12)",
                 fontSize: 12, fontWeight: 600,
-                color: d.alert_level === "EMERGENCY" ? "#fca5a5" : d.alert_level === "WARNING" ? "#fdba74" : "#fcd34d",
+                color: d.alert_level === "EMERGENCY" ? "var(--ember-text)" : "var(--amber-text)",
               }}>
                 ⚠ {d.alert_level} — {d.highest_risk_sector || ""}
               </div>

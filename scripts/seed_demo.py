@@ -18,6 +18,7 @@ The demo flow then is:
 
 import asyncio
 import logging
+import os
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -31,10 +32,15 @@ load_dotenv(ROOT / ".env")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
+# Musanze officer uses your real number from .env so you receive the test SMS.
+# Other districts keep placeholder numbers (sandbox only, not real phones).
+_test_phone = os.getenv("TEST_OFFICER_PHONE", "+250788000001")
+_test_name  = os.getenv("TEST_OFFICER_NAME", "Test Officer")
+
 DEMO_RECIPIENTS = [
-    {"name": "Emmanuel Nkusi", "phone": "+250788000001", "district": "Musanze", "role": "district_officer"},
+    {"name": _test_name,        "phone": _test_phone,     "district": "Musanze", "role": "district_officer"},
     {"name": "Jeanne Mukamana", "phone": "+250788000002", "district": "Gakenke", "role": "district_officer"},
-    {"name": "Patrick Habimana", "phone": "+250788000003", "district": "Burera", "role": "district_officer"},
+    {"name": "Patrick Habimana","phone": "+250788000003", "district": "Burera",  "role": "district_officer"},
     {"name": "Vestine Uwimana", "phone": "+250788000004", "district": "Gicumbi", "role": "district_officer"},
 ]
 

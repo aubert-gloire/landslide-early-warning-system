@@ -3,17 +3,17 @@ import { useState } from "react";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 const RISK_COLORS = {
-  critical: { bg: "#450a0a", text: "#fca5a5", border: "#dc2626" },
-  high:     { bg: "#431407", text: "#fdba74", border: "#ea580c" },
-  medium:   { bg: "#422006", text: "#fcd34d", border: "#ca8a04" },
-  low:      { bg: "#052e16", text: "#86efac", border: "#16a34a" },
+  critical: { bg: "rgba(194,75,58,0.15)",  text: "var(--ember-text)", border: "rgba(194,75,58,0.4)" },
+  high:     { bg: "rgba(201,154,62,0.12)", text: "var(--amber-text)", border: "rgba(201,154,62,0.35)" },
+  medium:   { bg: "rgba(201,154,62,0.08)", text: "var(--amber-text)", border: "rgba(201,154,62,0.25)" },
+  low:      { bg: "rgba(116,147,106,0.12)", text: "var(--moss-text)", border: "rgba(116,147,106,0.35)" },
 };
 const THRESHOLD_COLORS = {
-  critical: "#fca5a5",
-  elevated: "#fcd34d",
-  normal:   "#86efac",
-  no_threshold: "#94a3b8",
-  no_value: "#64748b",
+  critical:     "var(--ember-text)",
+  elevated:     "var(--amber-text)",
+  normal:       "var(--moss-text)",
+  no_threshold: "var(--chalk-dim)",
+  no_value:     "var(--chalk-dim)",
 };
 
 const FIELD_META = {
@@ -54,47 +54,47 @@ const SCENARIO_PRESETS = [
 
 const styles = {
   root: { display: "grid", gridTemplateColumns: "clamp(280px, 30%, 360px) 1fr", gap: 24, alignItems: "start" },
-  panel: { background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: 20 },
-  sectionTitle: { fontSize: 12, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 },
+  panel: { background: "var(--panel)", border: "1px solid var(--line-strong)", borderRadius: 10, padding: 20 },
+  sectionTitle: { fontSize: 12, fontWeight: 600, color: "var(--chalk-dim)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 },
   fieldRow: { marginBottom: 14 },
-  label: { display: "block", fontSize: 12, color: "#94a3b8", marginBottom: 4, fontWeight: 500 },
+  label: { display: "block", fontSize: 12, color: "var(--chalk-dim)", marginBottom: 4, fontWeight: 500 },
   input: {
     width: "100%", boxSizing: "border-box",
-    background: "#1e293b", border: "1px solid #334155", color: "#e2e8f0",
+    background: "var(--panel-2)", border: "1px solid var(--line-strong)", color: "var(--chalk)",
     padding: "7px 10px", borderRadius: 6, fontSize: 13,
   },
-  hint: { fontSize: 11, color: "#475569", marginTop: 3 },
-  errorInput: { borderColor: "#dc2626" },
+  hint: { fontSize: 11, color: "var(--chalk-dim)", marginTop: 3 },
+  errorInput: { borderColor: "var(--ember)" },
   btn: {
-    width: "100%", padding: "10px 0", background: "#1d4ed8",
+    width: "100%", padding: "10px 0", background: "var(--storm)",
     color: "#fff", border: "none", borderRadius: 6, fontSize: 14,
     fontWeight: 600, cursor: "pointer", marginTop: 8,
   },
   presetBtn: {
     display: "block", width: "100%", textAlign: "left",
-    padding: "7px 10px", background: "#1e293b", border: "1px solid #334155",
-    color: "#94a3b8", borderRadius: 6, fontSize: 12, cursor: "pointer",
+    padding: "7px 10px", background: "var(--panel-2)", border: "1px solid var(--line-strong)",
+    color: "var(--chalk-dim)", borderRadius: 6, fontSize: 12, cursor: "pointer",
     marginBottom: 6,
   },
-  invalidPreset: { borderColor: "#dc2626", color: "#fca5a5" },
-  divider: { borderColor: "#1e293b", margin: "16px 0" },
-  narrative: { lineHeight: 1.7, fontSize: 14, color: "#e2e8f0", marginBottom: 16 },
+  invalidPreset: { borderColor: "var(--ember)", color: "var(--ember-text)" },
+  divider: { borderColor: "var(--line)", margin: "16px 0" },
+  narrative: { lineHeight: 1.7, fontSize: 14, color: "var(--chalk)", marginBottom: 16 },
   featureRow: {
     display: "flex", alignItems: "flex-start", gap: 10,
-    padding: "10px 0", borderBottom: "1px solid #1e293b",
+    padding: "10px 0", borderBottom: "1px solid var(--line)",
   },
-  rank: { fontSize: 18, fontWeight: 700, color: "#334155", minWidth: 24, textAlign: "center" },
-  featureName: { fontWeight: 600, fontSize: 13, color: "#e2e8f0" },
-  featureValue: { fontSize: 12, color: "#94a3b8" },
+  rank: { fontSize: 18, fontWeight: 700, color: "var(--chalk-dim)", minWidth: 24, textAlign: "center" },
+  featureName: { fontWeight: 600, fontSize: 13, color: "var(--chalk)" },
+  featureValue: { fontSize: 12, color: "var(--chalk-dim)" },
   featureCtx: { fontSize: 12, marginTop: 2 },
-  impBar: { height: 4, borderRadius: 2, background: "#1d4ed8", marginTop: 6 },
-  errorBox: { background: "#450a0a", border: "1px solid #dc2626", borderRadius: 8, padding: 16 },
-  errorTitle: { color: "#fca5a5", fontWeight: 600, fontSize: 13, marginBottom: 8 },
-  errorItem: { color: "#fca5a5", fontSize: 13, marginBottom: 4 },
+  impBar: { height: 4, borderRadius: 2, background: "var(--storm)", marginTop: 6 },
+  errorBox: { background: "rgba(194,75,58,0.12)", border: "1px solid rgba(194,75,58,0.35)", borderRadius: 8, padding: 16 },
+  errorTitle: { color: "var(--ember-text)", fontWeight: 600, fontSize: 13, marginBottom: 8 },
+  errorItem: { color: "var(--ember-text)", fontSize: 13, marginBottom: 4 },
   metricRow: { display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" },
-  metric: { flex: 1, minWidth: 120, background: "#1e293b", borderRadius: 8, padding: "12px 16px" },
+  metric: { flex: 1, minWidth: 120, background: "var(--panel-2)", borderRadius: 8, padding: "12px 16px" },
   metricVal: { fontSize: 24, fontWeight: 700 },
-  metricLabel: { fontSize: 11, color: "#64748b", marginTop: 2 },
+  metricLabel: { fontSize: 11, color: "var(--chalk-dim)", marginTop: 2 },
 };
 
 function RiskBadge({ level }) {
@@ -173,7 +173,6 @@ export default function PredictPanel() {
       });
 
       if (res.status === 422) {
-        // Pydantic validation failed — show field-level errors
         const errData = await res.json();
         const errors = (errData.detail || []).map((d) => ({
           field: d.loc?.slice(1).join(".") || "input",
@@ -202,7 +201,7 @@ export default function PredictPanel() {
     setAlertLoading(true);
     setAlertResult(null);
     const body = { district: alertDistrict, force };
-    for (const [k, meta] of Object.entries(FIELD_META)) {
+    for (const [k] of Object.entries(FIELD_META)) {
       const raw = form[k].trim();
       if (raw === "") continue;
       body[k] = k === "soil_class" ? parseInt(raw, 10) : parseFloat(raw);
@@ -255,7 +254,7 @@ export default function PredictPanel() {
               <div key={field} style={styles.fieldRow}>
                 <label style={styles.label}>
                   {meta.label}
-                  {meta.required && <span style={{ color: "#dc2626" }}> *</span>}
+                  {meta.required && <span style={{ color: "var(--ember)" }}> *</span>}
                 </label>
                 <input
                   type="number"
@@ -271,7 +270,7 @@ export default function PredictPanel() {
                   }}
                 />
                 {fieldErrors[field] && (
-                  <div style={{ color: "#f87171", fontSize: 11, marginTop: 3 }}>{fieldErrors[field]}</div>
+                  <div style={{ color: "var(--ember-text)", fontSize: 11, marginTop: 3 }}>{fieldErrors[field]}</div>
                 )}
                 <div style={styles.hint}>{meta.hint}</div>
               </div>
@@ -286,8 +285,8 @@ export default function PredictPanel() {
       {/* Right: result */}
       <div>
         {!result && !validationErrors && (
-          <div style={{ ...styles.panel, color: "#475569", fontSize: 13, lineHeight: 1.8 }}>
-            <strong style={{ color: "#94a3b8" }}>How to use this panel</strong>
+          <div style={{ ...styles.panel, color: "var(--chalk-dim)", fontSize: 13, lineHeight: 1.8 }}>
+            <strong style={{ color: "var(--chalk)" }}>How to use this panel</strong>
             <p style={{ marginTop: 8 }}>
               Select a preset scenario or enter feature values manually, then click <em>Run Prediction</em>.
             </p>
@@ -297,7 +296,7 @@ export default function PredictPanel() {
               Kuradusenge et al. (2020).
             </p>
             <p>
-              Try the two <span style={{ color: "#fca5a5" }}>invalid presets</span> to see how the API
+              Try the two <span style={{ color: "var(--ember-text)" }}>invalid presets</span> to see how the API
               rejects physically impossible inputs (negative rainfall, slope &gt; 90°) with
               422 validation errors before the model even runs.
             </p>
@@ -309,18 +308,18 @@ export default function PredictPanel() {
             <div style={styles.errorTitle}>
               Input Validation Failed (HTTP 422 — Unprocessable Entity)
             </div>
-            <p style={{ color: "#94a3b8", fontSize: 12, marginBottom: 12 }}>
+            <p style={{ color: "var(--chalk-dim)", fontSize: 12, marginBottom: 12 }}>
               The API rejected the request before running the model. Fix the inputs below:
             </p>
             {validationErrors.map((err, i) => (
               <div key={i} style={styles.errorItem}>
                 <strong>{err.field}:</strong> {err.message}
                 {err.value !== undefined && (
-                  <span style={{ color: "#94a3b8" }}> (got: {JSON.stringify(err.value)})</span>
+                  <span style={{ color: "var(--chalk-dim)" }}> (got: {JSON.stringify(err.value)})</span>
                 )}
               </div>
             ))}
-            <p style={{ color: "#64748b", fontSize: 11, marginTop: 12, marginBottom: 0 }}>
+            <p style={{ color: "var(--chalk-dim)", fontSize: 11, marginTop: 12, marginBottom: 0 }}>
               This demonstrates system robustness — invalid data is rejected at the API boundary,
               never reaching the model or database.
             </p>
@@ -330,18 +329,14 @@ export default function PredictPanel() {
         {result && (
           <div>
             {/* Risk summary */}
-            <div style={{
-              ...styles.panel,
-              borderColor: riskColors.border,
-              marginBottom: 16,
-            }}>
+            <div style={{ ...styles.panel, borderColor: riskColors.border, marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <RiskBadge level={result.risk_level} />
-                <span style={{ color: "#64748b", fontSize: 12 }}>
+                <span style={{ color: "var(--chalk-dim)", fontSize: 12 }}>
                   Alert threshold: {Math.round(result.production_threshold * 100)}%
                 </span>
                 {result.alert_triggered && (
-                  <span style={{ color: "#dc2626", fontSize: 12, fontWeight: 600 }}>
+                  <span style={{ color: "var(--ember)", fontSize: 12, fontWeight: 600 }}>
                     ⚠ ALERT THRESHOLD EXCEEDED
                   </span>
                 )}
@@ -355,28 +350,27 @@ export default function PredictPanel() {
                   <div style={styles.metricLabel}>Risk Probability</div>
                 </div>
                 <div style={styles.metric}>
-                  <div style={{ ...styles.metricVal, color: result.alert_triggered ? "#dc2626" : "#86efac" }}>
+                  <div style={{ ...styles.metricVal, color: result.alert_triggered ? "var(--ember)" : "var(--moss-text)" }}>
                     {result.alert_triggered ? "YES" : "NO"}
                   </div>
                   <div style={styles.metricLabel}>Alert Triggered</div>
                 </div>
                 <div style={styles.metric}>
-                  <div style={{ ...styles.metricVal, color: "#94a3b8", fontSize: 16 }}>
+                  <div style={{ ...styles.metricVal, color: "var(--chalk-dim)", fontSize: 16 }}>
                     {result.input_summary.slope_angle}° / {result.input_summary.daily_mm}mm
                   </div>
                   <div style={styles.metricLabel}>Slope / Daily Rain</div>
                 </div>
               </div>
 
-              {/* Risk narrative */}
               <div style={{ ...styles.sectionTitle, marginTop: 4 }}>Model Reasoning</div>
               <div style={styles.narrative}>{result.risk_narrative}</div>
             </div>
 
             {/* Expert SMS dispatch */}
-            <div style={{ ...styles.panel, marginBottom: 16, borderColor: result.alert_triggered ? "#dc2626" : "#334155" }}>
+            <div style={{ ...styles.panel, marginBottom: 16, borderColor: result.alert_triggered ? "var(--ember)" : "var(--line-strong)" }}>
               <div style={styles.sectionTitle}>Expert SMS Dispatch</div>
-              <p style={{ fontSize: 12, color: "#64748b", marginBottom: 12, marginTop: 0 }}>
+              <p style={{ fontSize: 12, color: "var(--chalk-dim)", marginBottom: 12, marginTop: 0 }}>
                 Enter the district name and send an SMS alert directly to registered field officers.
                 {!result.alert_triggered && " The model is below threshold — use Force Send to override."}
               </p>
@@ -393,7 +387,8 @@ export default function PredictPanel() {
                   disabled={alertLoading || !alertDistrict.trim() || !result.alert_triggered}
                   style={{
                     ...styles.btn, width: "auto", padding: "8px 16px", marginTop: 0,
-                    background: result.alert_triggered ? "#dc2626" : "#475569",
+                    background: result.alert_triggered ? "var(--ember)" : "var(--panel-2)",
+                    color: "#fff",
                     cursor: (alertLoading || !alertDistrict.trim() || !result.alert_triggered) ? "not-allowed" : "pointer",
                     opacity: (!alertDistrict.trim() || !result.alert_triggered) ? 0.5 : 1,
                   }}
@@ -405,7 +400,9 @@ export default function PredictPanel() {
                   disabled={alertLoading || !alertDistrict.trim()}
                   style={{
                     ...styles.btn, width: "auto", padding: "8px 16px", marginTop: 0,
-                    background: "#78350f",
+                    background: "rgba(201,154,62,0.15)",
+                    border: "1px solid rgba(201,154,62,0.4)",
+                    color: "var(--amber-text)",
                     cursor: (alertLoading || !alertDistrict.trim()) ? "not-allowed" : "pointer",
                     opacity: !alertDistrict.trim() ? 0.5 : 1,
                     fontSize: 12,
@@ -416,25 +413,25 @@ export default function PredictPanel() {
               </div>
 
               {alertResult && !alertResult.error && alertResult.sent && (
-                <div style={{ marginTop: 12, background: "#052e16", border: "1px solid #16a34a", borderRadius: 6, padding: 12 }}>
-                  <div style={{ color: "#86efac", fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                <div style={{ marginTop: 12, background: "rgba(116,147,106,0.12)", border: "1px solid rgba(116,147,106,0.35)", borderRadius: 6, padding: 12 }}>
+                  <div style={{ color: "var(--moss-text)", fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
                     ✓ SMS sent to {alertResult.sms_count} recipient{alertResult.sms_count !== 1 ? "s" : ""} in {alertResult.district}
-                    {alertResult.forced && <span style={{ color: "#fcd34d" }}> (expert override)</span>}
+                    {alertResult.forced && <span style={{ color: "var(--amber-text)" }}> (expert override)</span>}
                   </div>
                   {alertResult.recipients.map((r) => (
-                    <div key={r.alert_id} style={{ fontSize: 12, color: "#4ade80" }}>
+                    <div key={r.alert_id} style={{ fontSize: 12, color: "var(--moss-text)" }}>
                       → {r.name} ({r.phone})
                     </div>
                   ))}
                 </div>
               )}
               {alertResult && !alertResult.error && !alertResult.sent && (
-                <div style={{ marginTop: 12, background: "#1e293b", borderRadius: 6, padding: 10, fontSize: 12, color: "#94a3b8" }}>
+                <div style={{ marginTop: 12, background: "var(--panel-2)", borderRadius: 6, padding: 10, fontSize: 12, color: "var(--chalk-dim)" }}>
                   {alertResult.reason}
                 </div>
               )}
               {alertResult && alertResult.error && (
-                <div style={{ marginTop: 12, background: "#450a0a", borderRadius: 6, padding: 10, fontSize: 12, color: "#fca5a5" }}>
+                <div style={{ marginTop: 12, background: "rgba(194,75,58,0.12)", borderRadius: 6, padding: 10, fontSize: 12, color: "var(--ember-text)" }}>
                   {alertResult.error}
                 </div>
               )}
@@ -458,7 +455,7 @@ export default function PredictPanel() {
                       {f.threshold_context && (
                         <div style={{
                           ...styles.featureCtx,
-                          color: THRESHOLD_COLORS[f.threshold_status] || "#94a3b8",
+                          color: THRESHOLD_COLORS[f.threshold_status] || "var(--chalk-dim)",
                         }}>
                           {f.threshold_context}
                         </div>
@@ -468,7 +465,7 @@ export default function PredictPanel() {
                   </div>
                 ));
               })()}
-              <div style={{ marginTop: 14, fontSize: 11, color: "#475569" }}>
+              <div style={{ marginTop: 14, fontSize: 11, color: "var(--chalk-dim)" }}>
                 Importances from best-selected model (XGBoost, mean decrease in impurity, 5-fold CV).
                 Thresholds based on Kuradusenge et al. (2020), Northern Province Rwanda.
               </div>

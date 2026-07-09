@@ -85,10 +85,22 @@ async def get_risk_map(run_date: date | None = Query(default=None)):
             },
         })
 
+    # Expose the latest rainfall record date so the frontend can show the data lag
+    latest_rain = await db.rainfall_records.find_one(
+        {"daily_mm": {"$gt": 0}}, sort=[("date", -1)]
+    )
+    data_date = latest_rain["date"] if latest_rain else str(run_date)
+
     return JSONResponse({
         "type": "FeatureCollection",
         "features": features,
-        "metadata": {"date": str(run_date), "unit_count": len(features)},
+        "metadata": {
+            "run_date": str(run_date),
+            "data_date": data_date,
+            "unit_count": len(features),
+            # legacy key kept for compatibility
+            "date": str(run_date),
+        },
     })
 
 

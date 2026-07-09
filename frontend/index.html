@@ -4,11 +4,50 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Landslide EWS — Rwanda Northern Province</title>
+    <title>Landslide Early Warning System — Rwanda Northern Province</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+      :root {
+        --ink: #14171A;
+        --panel: #1E2328;
+        --panel-2: #20262B;
+        --terminal: #171B1E;
+        --chalk: #EDEDE6;
+        --chalk-dim: #9BA3A5;
+        --line: rgba(237,237,230,0.10);
+        --line-strong: rgba(237,237,230,0.18);
+        --storm: #6C9AB5;
+        --storm-text: #9DC3DA;
+        --moss: #74936A;
+        --moss-text: #9AC28C;
+        --amber: #C99A3E;
+        --amber-text: #E3B769;
+        --ember: #C24B3A;
+        --ember-text: #E2836F;
+        --radius: 10px;
+      }
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e2e8f0; }
+      html { scroll-behavior: smooth; }
+      body {
+        font-family: 'Public Sans', sans-serif;
+        background: var(--ink);
+        color: var(--chalk);
+        font-size: 15px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      button { font-family: inherit; cursor: pointer; }
+      :focus-visible { outline: 2px solid var(--storm); outline-offset: 2px; }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.45; }
+      }
+      @keyframes sweep {
+        from { transform: rotate(-90deg); }
+      }
     </style>
   </head>
   <body>

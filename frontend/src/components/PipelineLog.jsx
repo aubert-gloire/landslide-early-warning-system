@@ -4,9 +4,9 @@ const BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL |
 
 const styles = {
   container: {
-    background: "#0a0e1a",
-    border: "1px solid #1e293b",
-    borderRadius: 8,
+    background: "var(--terminal)",
+    border: "1px solid var(--line-strong)",
+    borderRadius: 10,
     display: "flex",
     flexDirection: "column",
     height: 260,
@@ -17,38 +17,38 @@ const styles = {
     alignItems: "center",
     justifyContent: "space-between",
     padding: "8px 14px",
-    borderBottom: "1px solid #1e293b",
-    background: "#0f1117",
+    borderBottom: "1px solid var(--line)",
+    background: "var(--ink)",
   },
   title: {
     fontSize: 12,
     fontWeight: 600,
-    color: "#64748b",
+    color: "var(--chalk-dim)",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    fontFamily: "monospace",
+    fontFamily: "'Space Mono', monospace",
   },
   tag: (done, error) => ({
     fontSize: 11,
     fontWeight: 600,
     padding: "2px 8px",
     borderRadius: 10,
-    background: error ? "#450a0a" : done ? "#14532d" : "#1e3a5f",
-    color: error ? "#fca5a5" : done ? "#86efac" : "#93c5fd",
+    background: error ? "rgba(194,75,58,0.15)" : done ? "rgba(116,147,106,0.15)" : "rgba(108,154,181,0.15)",
+    color: error ? "var(--ember-text)" : done ? "var(--moss-text)" : "var(--storm-text)",
   }),
   log: {
     flex: 1,
     overflowY: "auto",
     padding: "10px 14px",
-    fontFamily: "monospace",
+    fontFamily: "'Space Mono', monospace",
     fontSize: 12,
     lineHeight: 1.7,
   },
   line: (type) => ({
-    color: type === "done"  ? "#86efac"
-         : type === "error" ? "#fca5a5"
-         : type === "sms"   ? "#fcd34d"
-         : "#94a3b8",
+    color: type === "done"  ? "var(--moss-text)"
+         : type === "error" ? "var(--ember-text)"
+         : type === "sms"   ? "var(--amber-text)"
+         : "var(--chalk-dim)",
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
   }),
@@ -56,13 +56,12 @@ const styles = {
     display: "inline-block",
     width: 7,
     height: 13,
-    background: "#3b82f6",
+    background: "var(--storm)",
     marginLeft: 2,
     animation: "blink 1s step-end infinite",
   },
 };
 
-// inject blink keyframe once
 if (typeof document !== "undefined" && !document.getElementById("blink-style")) {
   const s = document.createElement("style");
   s.id = "blink-style";
@@ -79,7 +78,7 @@ function lineType(text) {
 
 export default function PipelineLog({ onDone, onClose }) {
   const [lines, setLines] = useState([]);
-  const [status, setStatus] = useState("running"); // running | done | error
+  const [status, setStatus] = useState("running");
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -131,7 +130,7 @@ export default function PipelineLog({ onDone, onClose }) {
             <button
               onClick={onClose}
               style={{
-                background: "none", border: "none", color: "#475569",
+                background: "none", border: "none", color: "var(--chalk-dim)",
                 cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px",
               }}
             >×</button>

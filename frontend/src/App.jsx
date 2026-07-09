@@ -1,132 +1,219 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import RiskMap from "./components/RiskMap";
 import AlertTable from "./components/AlertTable";
 import DistrictCards from "./components/DistrictCards";
 import PipelineLog from "./components/PipelineLog";
 import PredictPanel from "./components/PredictPanel";
-import { triggerPipeline } from "./hooks/useApi";
+import Login from "./components/Login";
+import HelpChat from "./components/HelpChat";
 
-const TABS = ["Risk Map", "Predict", "Alert History", "Districts"];
-
-const styles = {
-  root: { minHeight: "100vh", background: "#0f1117", color: "#e2e8f0", display: "flex", flexDirection: "column" },
-  header: {
-    display: "flex", alignItems: "center", justifyContent: "space-between",
-    padding: "14px 24px", background: "#0f1117",
-    borderBottom: "1px solid #1e293b", flexWrap: "wrap", gap: 12,
-  },
-  brand: { display: "flex", flexDirection: "column" },
-  title: { fontSize: 16, fontWeight: 700, color: "#f1f5f9", letterSpacing: "-0.01em" },
-  subtitle: { fontSize: 11, color: "#64748b", marginTop: 2 },
-  nav: { display: "flex", gap: 4 },
-  tab: (active) => ({
-    padding: "6px 16px", borderRadius: 6, fontSize: 13, cursor: "pointer",
-    background: active ? "#1e40af" : "transparent",
-    color: active ? "#eff6ff" : "#94a3b8",
-    border: "none", fontWeight: active ? 600 : 400,
-  }),
-  actions: { display: "flex", gap: 8 },
-  triggerBtn: {
-    padding: "6px 14px", background: "#dc2626", color: "#fff",
-    border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600,
-    cursor: "pointer", letterSpacing: "0.02em",
-  },
-  content: { flex: 1, padding: 24 },
-  mapWrap: { height: "calc(100vh - 140px)", borderRadius: 8, overflow: "hidden" },
-  section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 13, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 16 },
-  notice: {
-    marginBottom: 16, padding: "10px 14px", background: "#1e293b",
-    borderLeft: "3px solid #3b82f6", borderRadius: "0 6px 6px 0",
-    fontSize: 12, color: "#94a3b8", lineHeight: 1.6,
-  },
-  toast: (visible) => ({
-    position: "fixed", bottom: 24, right: 24, zIndex: 9999,
-    background: "#14532d", color: "#86efac", padding: "10px 18px",
-    borderRadius: 8, fontSize: 13, fontWeight: 500,
-    opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(8px)",
-    transition: "all 0.2s ease", pointerEvents: "none",
-  }),
-};
+const TABS = ["Risk Map", "Predict", "Alerts", "Districts"];
 
 export default function App() {
+  const [officer, setOfficer]   = useState(null);
   const [activeTab, setActiveTab] = useState("Risk Map");
-  const [showLog, setShowLog] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [showLog, setShowLog]   = useState(false);
+  const [toast, setToast]       = useState(null);
 
-  function handleTrigger() {
-    setShowLog(true);
+  // Restore session on reload
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("officer");
+      if (saved) setOfficer(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, []);
+
+  function handleLogin(data) { setOfficer(data); }
+
+  function handleLogout() {
+    sessionStorage.removeItem("officer");
+    setOfficer(null);
   }
 
   function handlePipelineDone(result) {
-    setToast(`Done — ${result.units_processed} units, ${result.alerts_triggered} alerts`);
-    setTimeout(() => setToast(null), 5000);
+    setToast(`Run complete — ${result.units_processed} units · ${result.alerts_triggered} alerts`);
+    setTimeout(() => setToast(null), 6000);
   }
 
+  if (!officer) return <Login onLogin={handleLogin} />;
+
   return (
-    <div style={styles.root}>
-      <header style={styles.header}>
-        <div style={styles.brand}>
-          <div style={styles.title}>Landslide Early Warning System</div>
-          <div style={styles.subtitle}>Rwanda Northern Province — Gakenke · Burera · Musanze · Gicumbi</div>
-        </div>
-        <nav style={styles.nav}>
-          {TABS.map((t) => (
-            <button key={t} style={styles.tab(activeTab === t)} onClick={() => setActiveTab(t)}>{t}</button>
-          ))}
-        </nav>
-        <div style={styles.actions}>
-          <button style={styles.triggerBtn} onClick={handleTrigger} disabled={showLog}>
-            {showLog ? "Running…" : "Run Pipeline"}
-          </button>
+    <div style={{ minHeight: "100vh", background: "var(--ink)", color: "var(--chalk)", display: "flex", flexDirection: "column" }}>
+
+      {/* Top bar */}
+      <header style={{
+        borderBottom: "1px solid var(--line)",
+        padding: "0 28px",
+      }}>
+        <div style={{
+          maxWidth: 1120, margin: "0 auto",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "18px 0", flexWrap: "wrap", gap: 12,
+        }}>
+          {/* Wordmark */}
+          <div style={{
+            fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 16,
+            letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: "50%", background: "var(--ember)",
+              boxShadow: "0 0 0 3px rgba(194,75,58,0.25)",
+              animation: "pulse 2.4s ease-in-out infinite", display: "inline-block",
+            }} />
+            Landslide EWS
+          </div>
+
+          {/* Nav */}
+          <nav style={{ display: "flex", gap: 24, fontSize: 13, letterSpacing: "0.03em" }}>
+            {TABS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setActiveTab(t)}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: activeTab === t ? "var(--chalk)" : "var(--chalk-dim)",
+                  fontFamily: "inherit", fontSize: 13, padding: "4px 0",
+                  borderBottom: activeTab === t ? "1px solid var(--storm)" : "1px solid transparent",
+                  transition: "color .15s",
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </nav>
+
+          {/* Officer + actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ fontSize: 12, color: "var(--chalk-dim)", textAlign: "right" }}>
+              <span style={{ color: "var(--chalk)", fontWeight: 500 }}>{officer.name}</span>
+              {" · "}{officer.district}
+            </div>
+            <button
+              onClick={() => setShowLog(true)}
+              disabled={showLog}
+              style={{
+                padding: "7px 14px", borderRadius: "var(--radius)",
+                background: "var(--ember)", border: "1px solid var(--ember)",
+                color: "#fff", fontSize: 12, fontWeight: 600,
+                opacity: showLog ? 0.6 : 1,
+              }}
+            >
+              {showLog ? "Running…" : "Run Pipeline"}
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: "7px 12px", borderRadius: "var(--radius)",
+                background: "transparent", border: "1px solid var(--line-strong)",
+                color: "var(--chalk-dim)", fontSize: 12,
+              }}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
-      <main style={styles.content}>
-        {(activeTab === "Risk Map" || activeTab === "Predict") && (
-          <div style={styles.notice}>
-            Decision-support system only. All alerts supplement — and do not replace — official MINEMA and Meteo Rwanda protocols.
-          </div>
-        )}
+      {/* Main */}
+      <main style={{ flex: 1, padding: "28px", maxWidth: 1120, margin: "0 auto", width: "100%" }}>
 
         {showLog && (
-          <div style={{ marginBottom: 16 }}>
-            <PipelineLog
-              onDone={handlePipelineDone}
-              onClose={() => setShowLog(false)}
-            />
+          <div style={{ marginBottom: 24 }}>
+            <PipelineLog onDone={handlePipelineDone} onClose={() => setShowLog(false)} />
           </div>
         )}
 
         {activeTab === "Risk Map" && (
-          <div style={styles.mapWrap}>
+          <>
+            <p style={{
+              fontFamily: "'Space Mono', monospace", fontSize: 11,
+              color: "var(--chalk-dim)", letterSpacing: "0.07em",
+              textTransform: "uppercase", marginBottom: 16,
+            }}>
+              Slope-unit risk map — current assessment
+            </p>
             <RiskMap />
-          </div>
+            <p style={{
+              marginTop: 12, fontSize: 11, color: "var(--chalk-dim)",
+              borderLeft: "2px solid var(--line-strong)", paddingLeft: 10,
+            }}>
+              Decision-support only. All alerts supplement — and do not replace — official MINEMA and Meteo Rwanda protocols.
+            </p>
+          </>
         )}
 
         {activeTab === "Predict" && (
-          <div>
-            <div style={styles.sectionTitle}>Single-Point Prediction &amp; Model Explainability</div>
+          <>
+            <p style={{
+              fontFamily: "'Space Mono', monospace", fontSize: 11,
+              color: "var(--chalk-dim)", letterSpacing: "0.07em",
+              textTransform: "uppercase", marginBottom: 20,
+            }}>
+              Single-point prediction &amp; expert SMS dispatch
+            </p>
             <PredictPanel />
-          </div>
+          </>
         )}
 
-        {activeTab === "Alert History" && (
-          <div>
-            <div style={styles.sectionTitle}>SMS Alert History</div>
+        {activeTab === "Alerts" && (
+          <>
+            <p style={{
+              fontFamily: "'Space Mono', monospace", fontSize: 11,
+              color: "var(--chalk-dim)", letterSpacing: "0.07em",
+              textTransform: "uppercase", marginBottom: 20,
+            }}>
+              SMS dispatch log
+            </p>
             <AlertTable />
-          </div>
+          </>
         )}
 
         {activeTab === "Districts" && (
-          <div>
-            <div style={styles.sectionTitle}>District Summary</div>
+          <>
+            <p style={{
+              fontFamily: "'Space Mono', monospace", fontSize: 11,
+              color: "var(--chalk-dim)", letterSpacing: "0.07em",
+              textTransform: "uppercase", marginBottom: 20,
+            }}>
+              District risk summary
+            </p>
             <DistrictCards />
-          </div>
+          </>
         )}
       </main>
 
-      <div style={styles.toast(!!toast)}>{toast}</div>
+      {/* Footer */}
+      <footer style={{
+        borderTop: "1px solid var(--line)", padding: "20px 28px",
+        display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
+        maxWidth: 1120, margin: "0 auto", width: "100%",
+      }}>
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          background: "rgba(116,147,106,0.12)", color: "var(--moss-text)",
+          border: "1px solid rgba(116,147,106,0.3)", borderRadius: 999,
+          padding: "5px 14px", fontSize: 11, fontFamily: "'Space Mono', monospace",
+        }}>
+          ✓ XGBoost · AUC 0.959 · FNR 8.3% · backtested 396 slope units
+        </span>
+        <span style={{ fontSize: 11, color: "var(--chalk-dim)" }}>
+          Data: CHIRPS Preliminary · Copernicus 30m DEM · Sentinel-2 NDVI · ISRIC soil · Africa's Talking
+        </span>
+      </footer>
+
+      <HelpChat />
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 9999,
+          background: "#14532d", color: "#86efac", padding: "10px 18px",
+          borderRadius: 8, fontSize: 13, fontWeight: 500,
+          border: "1px solid rgba(116,147,106,0.4)",
+        }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

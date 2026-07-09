@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .database import close_client, ensure_indexes
 from .routes.alerts import router as alerts_router
+from .routes.auth import router as auth_router
 from .routes.districts import router as districts_router
 from .routes.predict import router as predict_router
 from .routes.risk_map import router as risk_map_router
@@ -66,6 +67,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router, prefix="/api")
 app.include_router(risk_map_router, prefix="/api")
 app.include_router(alerts_router, prefix="/api")
 app.include_router(districts_router, prefix="/api")
