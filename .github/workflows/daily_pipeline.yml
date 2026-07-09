@@ -2,8 +2,8 @@ name: Daily Landslide Pipeline
 
 on:
   schedule:
-    # 04:00 UTC = 06:00 Africa/Kigali
-    - cron: "0 4 * * *"
+    # 08:00 UTC = 10:00 Africa/Kigali (CHIRPS data published by ~07:00 UTC)
+    - cron: "0 8 * * *"
   workflow_dispatch:  # allow manual trigger from GitHub UI
 
 jobs:
@@ -15,9 +15,7 @@ jobs:
           curl -X POST "${{ secrets.API_BASE_URL }}/api/trigger" \
             -H "Content-Type: application/json" \
             -d '{"dry_run": false}' \
-            --fail \
-            --max-time 120
-
-      - name: Notify on failure
-        if: failure()
-        run: echo "Daily pipeline trigger failed — check Render logs"
+            --max-time 180 \
+            -w "\nHTTP %{http_code}" \
+            -o /tmp/response.txt || true
+          cat /tmp/response.txt
