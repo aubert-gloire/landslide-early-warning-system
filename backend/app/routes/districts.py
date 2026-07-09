@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter
@@ -14,12 +15,22 @@ TARGET_DISTRICTS = ["Gakenke", "Burera", "Musanze", "Gicumbi"]
 
 
 def _safe_str(val):
-    """Convert any date/datetime to ISO string; leave strings and None as-is."""
     if val is None:
         return None
-    if isinstance(val, (datetime,)):
+    if isinstance(val, datetime):
         return val.date().isoformat()
     return str(val)
+
+
+def _safe_float(val):
+    """Return None for None, NaN, or Inf — all illegal in JSON."""
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        return None if (math.isnan(f) or math.isinf(f)) else f
+    except (TypeError, ValueError):
+        return None
 
 
 @router.get("/districts")
@@ -95,15 +106,17 @@ async def _get_districts_inner():
                 "avg_daily": {"$avg": "$daily_mm"},
             }},
         ]).to_list(length=1)
-        avg_5day  = round(float(rain_agg[0]["avg_5day"]),  1) if rain_agg and rain_agg[0].get("avg_5day")  is not None else 0.0
-        avg_daily = round(float(rain_agg[0]["avg_daily"]), 1) if rain_agg and rain_agg[0].get("avg_daily") is not None else 0.0
+        r5   = _safe_float(rain_agg[0].get("avg_5day"))  if rain_agg else None
+        rd   = _safe_float(rain_agg[0].get("avg_daily")) if rain_agg else None
+        avg_5day  = round(r5,  1) if r5  is not None else 0.0
+        avg_daily = round(rd, 1) if rd is not None else 0.0
 
         top_features = top_pred.get("top_features", []) if top_pred else []
 
         summaries.append({
             "district":                district,
             "unit_count":              len(unit_ids),
-            "highest_risk_probability": float(prob) if prob is not None else None,
+            "highest_risk_probability": _safe_float(prob),
             "highest_risk_unit_id":    top_pred["slope_unit_id"] if top_pred else None,
             "highest_risk_sector":     highest_sector,
             "alert_level":             alert_level,
