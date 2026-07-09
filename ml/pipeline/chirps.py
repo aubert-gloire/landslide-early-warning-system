@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Northern Province bounding box (WGS84)
 BBOX = {"south": -1.85, "north": -1.00, "west": 29.40, "east": 30.45}
 
-CHIRPS_BASE = "https://data.chc.ucsb.edu/products/CHIRPS-2.0/africa_daily/tifs/p05"
+CHIRPS_BASE = "https://data.chc.ucsb.edu/products/CHIRPS-2.0/prelim/global_daily/tifs/p05"
 
 
 class CHIRPSDownloader:
