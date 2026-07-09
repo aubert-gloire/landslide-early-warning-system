@@ -4,10 +4,9 @@ import AlertTable from "./components/AlertTable";
 import DistrictCards from "./components/DistrictCards";
 import PipelineLog from "./components/PipelineLog";
 import PredictPanel from "./components/PredictPanel";
-import AboutPanel from "./components/AboutPanel";
 import { triggerPipeline } from "./hooks/useApi";
 
-const TABS = ["About", "Risk Map", "Predict", "Alert History", "Districts"];
+const TABS = ["Risk Map", "Predict", "Alert History", "Districts"];
 
 const styles = {
   root: { minHeight: "100vh", background: "#0f1117", color: "#e2e8f0", display: "flex", flexDirection: "column" },
@@ -51,7 +50,7 @@ const styles = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("About");
+  const [activeTab, setActiveTab] = useState("Risk Map");
   const [showLog, setShowLog] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -96,12 +95,6 @@ export default function App() {
               onDone={handlePipelineDone}
               onClose={() => setShowLog(false)}
             />
-          </div>
-        )}
-
-        {activeTab === "About" && (
-          <div>
-            <AboutPanel />
           </div>
         )}
 
