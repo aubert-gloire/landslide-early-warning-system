@@ -18,4 +18,4 @@ jobs:
             --max-time 180 \
             -w "\nHTTP %{http_code}" \
             -o /tmp/response.txt || true
-          cat /tmp/response.txt
+          cat /tmp/response.txt || echo "(no response body)"
