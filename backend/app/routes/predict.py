@@ -356,6 +356,24 @@ async def predict_and_alert(body: ManualAlertRequest):
             detail=f"No active recipients found for district '{body.district}'.",
         )
 
+    # Look up the highest-risk slope unit for this district to get real GPS coordinates
+    from datetime import date as _date
+    today = _date.today().isoformat()
+    top_unit = await db.predictions.find_one(
+        {"district": body.district, "date": today},
+        sort=[("risk_probability", -1)],
+    )
+    centroid_lat = centroid_lon = None
+    unit_id = 0
+    sector = ""
+    if top_unit:
+        unit_id = top_unit.get("slope_unit_id", 0)
+        sector  = top_unit.get("sector", "")
+        unit_doc = await db.slope_units.find_one({"unit_id": unit_id})
+        if unit_doc:
+            centroid_lat = unit_doc.get("centroid_lat")
+            centroid_lon = unit_doc.get("centroid_lon")
+
     sent_to = []
     for recipient in recipients:
         alert_id = await send_alert(
@@ -363,10 +381,12 @@ async def predict_and_alert(body: ManualAlertRequest):
             recipient_id=recipient["recipient_id"],
             prediction_id="manual",
             district=body.district,
-            sector="",
-            unit_id=0,
+            sector=sector,
+            unit_id=unit_id,
             risk_probability=prob,
             top_features=top_features,
+            centroid_lat=centroid_lat,
+            centroid_lon=centroid_lon,
         )
         sent_to.append({"name": recipient["name"], "phone": recipient["phone"], "alert_id": alert_id})
 

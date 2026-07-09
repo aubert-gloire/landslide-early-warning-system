@@ -221,6 +221,8 @@ class DataPipeline:
             prediction_docs.append(doc)
 
         if prediction_docs:
+            # Replace today's predictions — avoids duplicates from retries or replays
+            await db.predictions.delete_many({"date": run_date.isoformat()})
             await db.predictions.insert_many(prediction_docs)
         await log(f"Saved {len(prediction_docs)} predictions to MongoDB")
 
