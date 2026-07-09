@@ -1,6 +1,8 @@
 import logging
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from ..database import get_db
 
@@ -11,11 +13,21 @@ router = APIRouter()
 TARGET_DISTRICTS = ["Gakenke", "Burera", "Musanze", "Gicumbi"]
 
 
+def _safe_str(val):
+    """Convert any date/datetime to ISO string; leave strings and None as-is."""
+    if val is None:
+        return None
+    if isinstance(val, (datetime,)):
+        return val.date().isoformat()
+    return str(val)
+
+
 @router.get("/districts")
 async def get_districts():
     """Per-district summary: highest risk unit, recent alert count, last update."""
     try:
-        return await _get_districts_inner()
+        result = await _get_districts_inner()
+        return JSONResponse(content=jsonable_encoder(result))
     except Exception as exc:
         logger.exception("Error in /api/districts: %s", exc)
         return JSONResponse(status_code=500, content={"detail": str(exc)})
@@ -25,7 +37,7 @@ async def _get_districts_inner():
     db = get_db()
 
     latest_pred = await db.predictions.find_one(sort=[("date", -1)])
-    latest_date = latest_pred["date"] if latest_pred else None
+    latest_date = _safe_str(latest_pred["date"]) if latest_pred else None
 
     summaries = []
     for district in TARGET_DISTRICTS:
@@ -48,11 +60,10 @@ async def _get_districts_inner():
         )
 
         # Alert count last 7 days
-        from datetime import datetime, timedelta
-        cutoff = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        cutoff = (datetime.utcnow() - timedelta(days=7)).date().isoformat()
         pred_ids_recent = await db.predictions.distinct(
             "_id",
-            {"slope_unit_id": {"$in": unit_ids}, "alert_triggered": True, "date": {"$gte": cutoff[:10]}},
+            {"slope_unit_id": {"$in": unit_ids}, "alert_triggered": True, "date": {"$gte": cutoff}},
         )
         alert_count = await db.alert_records.count_documents(
             {"prediction_id": {"$in": [str(p) for p in pred_ids_recent]}}
@@ -67,41 +78,40 @@ async def _get_districts_inner():
         elif prob and prob >= 0.40:
             alert_level = "WATCH"
 
-        # Get sector name for highest risk unit
+        # Sector name for highest-risk unit
         highest_sector = None
         if top_pred:
             unit_doc = await db.slope_units.find_one({"unit_id": top_pred["slope_unit_id"]})
             highest_sector = unit_doc.get("sector") if unit_doc else None
 
-        # Average rainfall for district from latest records
+        # Average rainfall across district from most recent records
         rain_agg = await db.rainfall_records.aggregate([
             {"$match": {"slope_unit_id": {"$in": unit_ids}}},
             {"$sort": {"date": -1}},
             {"$limit": len(unit_ids)},
             {"$group": {
                 "_id": None,
-                "avg_5day": {"$avg": "$antecedent_5day_mm"},
+                "avg_5day":  {"$avg": "$antecedent_5day_mm"},
                 "avg_daily": {"$avg": "$daily_mm"},
             }},
         ]).to_list(length=1)
-        avg_5day  = round(rain_agg[0]["avg_5day"],  1) if rain_agg and rain_agg[0].get("avg_5day")  is not None else 0
-        avg_daily = round(rain_agg[0]["avg_daily"], 1) if rain_agg and rain_agg[0].get("avg_daily") is not None else 0
+        avg_5day  = round(float(rain_agg[0]["avg_5day"]),  1) if rain_agg and rain_agg[0].get("avg_5day")  is not None else 0.0
+        avg_daily = round(float(rain_agg[0]["avg_daily"]), 1) if rain_agg and rain_agg[0].get("avg_daily") is not None else 0.0
 
-        # Top features from highest-risk prediction
         top_features = top_pred.get("top_features", []) if top_pred else []
 
         summaries.append({
-            "district": district,
-            "unit_count": len(unit_ids),
-            "highest_risk_probability": prob,
-            "highest_risk_unit_id": top_pred["slope_unit_id"] if top_pred else None,
-            "highest_risk_sector": highest_sector,
-            "alert_level": alert_level,
-            "recent_alert_count": alert_count,
-            "last_update": latest_date,
-            "avg_5day_mm": avg_5day,
-            "avg_daily_mm": avg_daily,
-            "top_features": top_features,
+            "district":                district,
+            "unit_count":              len(unit_ids),
+            "highest_risk_probability": float(prob) if prob is not None else None,
+            "highest_risk_unit_id":    top_pred["slope_unit_id"] if top_pred else None,
+            "highest_risk_sector":     highest_sector,
+            "alert_level":             alert_level,
+            "recent_alert_count":      alert_count,
+            "last_update":             latest_date,
+            "avg_5day_mm":             avg_5day,
+            "avg_daily_mm":            avg_daily,
+            "top_features":            list(top_features),
         })
 
     return {"districts": summaries}
