@@ -90,7 +90,7 @@ function RainGauge({ mm, label, maxMm = 200 }) {
   );
 }
 
-export default function Dashboard({ onRunPipeline }) {
+export default function Dashboard({ onRunPipeline, onNavigate }) {
   const { data: distData, loading: dLoading } = useApi("/api/districts");
   const { data: alertData }                    = useApi("/api/alerts?limit=6");
   const { data: statsData }                    = useApi("/api/alerts/stats");
@@ -165,7 +165,7 @@ export default function Dashboard({ onRunPipeline }) {
         )}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button
-            onClick={onRunPipeline}
+            onClick={() => onNavigate?.("Predict")}
             style={{
               borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 600,
               background: "var(--ember)", border: "1px solid var(--ember)", color: "#fff",
@@ -173,6 +173,16 @@ export default function Dashboard({ onRunPipeline }) {
             }}
           >
             Run manual prediction
+          </button>
+          <button
+            onClick={onRunPipeline}
+            style={{
+              borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 600,
+              background: "transparent", border: "1px solid var(--line-strong)", color: "var(--chalk)",
+              display: "inline-flex", alignItems: "center", gap: 8,
+            }}
+          >
+            Run pipeline
           </button>
           <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
             {stats.total_alerts > 0 && (

@@ -19,6 +19,7 @@ from ..services.pipeline import DataPipeline
 router = APIRouter()
 
 _pipeline: DataPipeline | None = None
+_running = False  # global lock — prevents concurrent pipeline runs
 
 
 def get_pipeline() -> DataPipeline:
@@ -93,19 +94,32 @@ async def trigger_stream():
     """
     SSE endpoint — runs the pipeline and streams live log lines to the browser.
     The frontend connects with EventSource and renders each line as it arrives.
+    Concurrent runs are rejected with a 409 so the client shows an error instead
+    of silently starting a second pipeline on top of the first.
     """
+    global _running
+    if _running:
+        async def _busy():
+            yield f'data: {json.dumps({"type": "error", "message": "Pipeline already running — wait for it to finish."})}\n\n'
+        return StreamingResponse(_busy(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
     queue: asyncio.Queue = asyncio.Queue()
 
     async def log_fn(msg: str):
         await queue.put({"type": "log", "message": msg})
 
     async def run():
+        global _running
+        _running = True
         try:
             pipeline = get_pipeline()
             result = await pipeline.run_daily(log_fn=log_fn)
             await queue.put({"type": "done", "result": result})
         except Exception as e:
             await queue.put({"type": "error", "message": str(e)})
+        finally:
+            _running = False
 
     asyncio.create_task(run())
 

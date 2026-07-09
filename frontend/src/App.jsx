@@ -134,7 +134,7 @@ export default function App() {
         )}
 
         {activeTab === "Overview" && (
-          <Dashboard key={dashboardKey} onRunPipeline={startPipeline} />
+          <Dashboard key={dashboardKey} onRunPipeline={startPipeline} onNavigate={setActiveTab} />
         )}
 
         {activeTab === "Risk Map" && (
