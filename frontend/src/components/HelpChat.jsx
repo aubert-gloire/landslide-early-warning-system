@@ -6,6 +6,14 @@ const WELCOME = `Hello! I'm the EWS Guide — I can explain how this system work
 
 const QA = [
   {
+    triggers: ["what is a landslide", "landslide", "what is landslide", "define landslide", "what are landslides"],
+    answer: `A landslide is when a mass of soil, rock, or debris suddenly breaks loose from a hillside and flows downhill — often in seconds, with no warning.\n\nNorthern Province Rwanda is one of the highest-risk areas in East Africa. The terrain is steep volcanic hillside, the soil is deep clay that absorbs water heavily, and the rainy seasons bring intense multi-day rainfall. When the soil absorbs more water than it can hold, it loses cohesion and the slope fails.\n\nBetween 2007 and 2020, Northern Province recorded over 200 landslide fatalities. The May 2023 Rubavu event killed 131 people in a single night — most had no advance warning.\n\nThis system exists to change that.`,
+  },
+  {
+    triggers: ["why is this important", "why does it matter", "importance", "why build this", "why ews", "why early warning", "impact"],
+    answer: `The danger isn't a single heavy rainstorm — it's accumulated rainfall over several days saturating the soil until one more trigger causes the slope to fail.\n\nBy the time a landslide is visible, it's already moving. There is no safe reaction time.\n\nAn early warning system gives field officers hours — not seconds — to act. A pre-dawn SMS that says "Sector X in Gakenke is at elevated risk today" allows officers to advise residents to move before the rain event peaks, not after.\n\nMinutes of warning can mean the difference between evacuation and fatality. That is why this system prioritises a low alert threshold (5%) — it is better to send more warnings than to miss a real event.`,
+  },
+  {
     triggers: ["how does it work", "how does the system work", "explain the system", "overview", "what does this system do", "how does ews work"],
     answer: `Every morning at 06:00 Kigali time, the system runs automatically:\n\n1. RAINFALL — NASA satellites measure how much rain fell across Northern Province yesterday. The data arrives with ~14 hours delay via GPM IMERG. If satellite data isn't ready, it falls back to CHIRPS (4-day lag).\n\n2. SCORING — Northern Province is divided into 396 slope units (sections of hillside). For each one, the system combines rainfall + slope angle + soil type + vegetation cover and runs it through an XGBoost model. Every slope unit gets a risk score from 0–100%.\n\n3. ALERTING — Any slope unit above the alert threshold triggers a warning. The system finds the registered officer for that district and sends an SMS through two providers simultaneously (Africa's Talking + Telerivet).\n\n4. RESPONSE — The officer replies YES or NO by SMS. That feedback is logged on the Alerts tab.\n\nThe dashboard shows a live risk map, district summary cards, rainfall gauges, and the full SMS log.`,
   },
@@ -97,10 +105,23 @@ const QUICK_REPLIES = [
 
 function matchAnswer(text) {
   const lower = text.toLowerCase();
+
+  // Pass 1 — exact substring match on any trigger phrase (highest confidence)
   for (const { triggers, answer } of QA) {
     if (triggers.some((t) => lower.includes(t))) return answer;
   }
-  return FALLBACK;
+
+  // Pass 2 — word-level scoring: count how many trigger words appear in the input
+  const inputWords = lower.split(/\W+/).filter(w => w.length > 2);
+  let bestScore = 0;
+  let bestAnswer = FALLBACK;
+  for (const { triggers, answer } of QA) {
+    const triggerWords = triggers.join(" ").split(/\W+/).filter(w => w.length > 2);
+    const score = inputWords.filter(w => triggerWords.includes(w)).length;
+    if (score > bestScore) { bestScore = score; bestAnswer = answer; }
+  }
+  // Only use word-score match if at least 2 words matched (avoids false positives)
+  return bestScore >= 2 ? bestAnswer : FALLBACK;
 }
 
 function Message({ msg }) {
