@@ -6,7 +6,7 @@
 > An ML-based operational early warning system that scores daily landslide risk across 396 slope units in Northern Province Rwanda, dispatches SMS alerts to registered field officers, and provides a real-time monitoring dashboard.
 
 🌐 **Live dashboard:** https://landslide-early-warning-system-zeta.vercel.app
-🎥 **Demo video:** [5-minute walkthrough — add link after recording]
+🎥 **Demo video:** [5-minute walkthrough](https://drive.google.com/file/d/1rcH9cV3U6WTQxP2QJvadwM-4VsYsVlPr/view?usp=sharing)
 📦 **Backend API:** https://landslide-ews-api.onrender.com/docs
 
 ---
