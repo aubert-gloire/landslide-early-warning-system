@@ -7,6 +7,7 @@ run_daily() is called by APScheduler and also by POST /api/trigger for demos.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from datetime import date, datetime, timedelta
@@ -125,7 +126,9 @@ class DataPipeline:
         else:
             # Slow path: download from UCSB and save to MongoDB for next time
             await log("Fetching CHIRPS v2 rainfall from UCSB Climate Hazards Center…")
-            rainfall_df = self.fetch_chirps(run_date)
+            # Run in a thread — requests.get() is synchronous and would block the
+            # event loop, starving the SSE stream and all other requests
+            rainfall_df = await asyncio.to_thread(self.fetch_chirps, run_date)
             rain_upserts = [
                 _UpdateOne(
                     {"slope_unit_id": int(row["unit_id"]), "date": rainfall_date},

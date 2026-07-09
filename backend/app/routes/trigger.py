@@ -111,7 +111,13 @@ async def trigger_stream():
 
     async def generate():
         while True:
-            event = await queue.get()
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=15)
+            except asyncio.TimeoutError:
+                # SSE comment line — keeps Render's load balancer from dropping
+                # the connection during the slow CHIRPS download (~60-90s)
+                yield ": heartbeat\n\n"
+                continue
             yield f"data: {json.dumps(event)}\n\n"
             if event["type"] in ("done", "error"):
                 break
