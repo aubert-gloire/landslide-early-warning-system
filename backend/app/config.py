@@ -11,10 +11,17 @@ class Settings(BaseSettings):
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "landslide_ews"
 
+    # SMS provider — "africastalking" | "telerivet"
+    sms_provider: str = "africastalking"
+
     # Africa's Talking
     at_username: str = "sandbox"
     at_api_key: str = ""
     at_sender_id: str = "LSEWS"
+
+    # Telerivet
+    telerivet_api_key: str = ""
+    telerivet_project_id: str = ""
 
     # OpenTopography
     opentopo_api_key: str = ""
