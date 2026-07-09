@@ -210,6 +210,28 @@ File: `.github/workflows/daily_pipeline.yml`
 
 ---
 
+## Screenshots
+
+### Mobile — Overview with live pipeline running
+![Overview on phone](screenshots/overview%20page%20on%20phone%20with%20live%20pipeline%20run.jpeg)
+
+### Mobile — Risk Map (396 slope unit polygons)
+![Risk map on phone](screenshots/risk%20map%20on%20phone.jpeg)
+
+### SMS Alert — received on field officer's phone
+![Landslide phone alert](screenshots/Landslide%20phone%20alert.jpeg)
+
+### Telerivet — dual SMS provider delivery confirmation
+![Telerivet SMS delivery](screenshots/Telerivet.png)
+
+### HelpChat — relevant question answered
+![HelpChat relevant](screenshots/relevant%20question%20on%20help%20ai.png)
+
+### HelpChat — unrecognised input (fallback handling)
+![HelpChat fallback](screenshots/irrelevant%20questions%20on%20help%20ai.png)
+
+---
+
 ## Testing Results & Strategies
 
 ### Strategy 1 — Unit / Model Validation (Offline)
