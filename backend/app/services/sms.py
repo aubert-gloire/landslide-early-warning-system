@@ -98,31 +98,57 @@ async def _send_via_africastalking(phone: str, message: str) -> str:
 
 
 async def _send_via_telerivet(phone: str, message: str) -> str:
-    """Send via Telerivet REST API. Returns delivery status string."""
+    """Send via Telerivet REST API (routes through Android SIM if route_id set)."""
     settings = get_settings()
     if not settings.telerivet_api_key or not settings.telerivet_project_id:
         raise ValueError("TELERIVET_API_KEY and TELERIVET_PROJECT_ID must be set")
     url = f"https://api.telerivet.com/v1/projects/{settings.telerivet_project_id}/messages/send"
+    payload: dict = {"to_number": phone, "content": message}
+    if settings.telerivet_route_id:
+        payload["route_id"] = settings.telerivet_route_id
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             url,
             auth=(settings.telerivet_api_key, ""),
-            json={"to_number": phone, "content": message},
+            json=payload,
         )
     resp.raise_for_status()
     data = resp.json()
     status = data.get("status", "failed")
-    logger.info("Telerivet response: id=%s status=%s", data.get("id"), status)
+    logger.info("Telerivet response: id=%s status=%s route=%s", data.get("id"), status, settings.telerivet_route_id or "default")
     return "sent" if status in ("queued", "sending", "sent", "delivered") else "failed"
 
 
 async def _dispatch_sms(phone: str, message: str) -> str:
-    """Route to configured SMS provider. Returns 'sent' or 'failed'."""
-    provider = get_settings().sms_provider.lower()
-    logger.info("SMS dispatch via provider=%s to=%s", provider, phone)
-    if provider == "telerivet":
-        return await _send_via_telerivet(phone, message)
-    return await _send_via_africastalking(phone, message)
+    """
+    Fan out to all configured SMS providers in parallel.
+    Returns 'sent' if at least one provider succeeds, 'failed' if all fail.
+    Configure via SMS_PROVIDER env var — comma-separated:
+      "africastalking"            → AT only
+      "telerivet"                 → Telerivet only
+      "africastalking,telerivet"  → both simultaneously
+    """
+    import asyncio as _asyncio
+
+    settings = get_settings()
+    providers = [p.strip() for p in settings.sms_provider.lower().split(",") if p.strip()]
+    logger.info("SMS dispatch via providers=%s to=%s", providers, phone)
+
+    async def try_provider(name: str) -> tuple[str, str]:
+        try:
+            if name == "telerivet":
+                status = await _send_via_telerivet(phone, message)
+            else:
+                status = await _send_via_africastalking(phone, message)
+            logger.info("Provider %s → %s", name, status)
+            return name, status
+        except Exception as exc:
+            logger.error("Provider %s failed: %s", name, exc)
+            return name, "failed"
+
+    results = await _asyncio.gather(*[try_provider(p) for p in providers])
+    any_sent = any(status == "sent" for _, status in results)
+    return "sent" if any_sent else "failed"
 
 
 async def send_alert(

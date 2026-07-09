@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "landslide_ews"
 
-    # SMS provider — "africastalking" | "telerivet"
-    sms_provider: str = "africastalking"
+    # SMS providers — comma-separated list: "africastalking", "telerivet", or "africastalking,telerivet"
+    sms_provider: str = "africastalking,telerivet"
 
     # Africa's Talking
     at_username: str = "sandbox"
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     # Telerivet
     telerivet_api_key: str = ""
     telerivet_project_id: str = ""
+    telerivet_route_id: str = ""   # Android SIM route ID — leave blank to use Telerivet default
 
     # OpenTopography
     opentopo_api_key: str = ""
