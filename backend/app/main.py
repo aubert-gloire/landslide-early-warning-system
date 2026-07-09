@@ -10,6 +10,7 @@ Endpoints:
   GET  /health              — uptime check (keeps Render awake via UptimeRobot)
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -33,6 +34,10 @@ async def lifespan(app: FastAPI):
     pipeline = DataPipeline()
     setup_scheduler(pipeline)
     scheduler.start()
+    # Pre-load model in a thread at startup — joblib.load() is synchronous and
+    # takes ~6s. Doing it here means the event loop is free and the first
+    # pipeline/predict request is instant instead of blocking.
+    await asyncio.to_thread(pipeline._get_model)
     yield
     # Shutdown
     scheduler.shutdown(wait=False)
