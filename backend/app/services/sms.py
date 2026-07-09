@@ -48,9 +48,9 @@ def _init_at():
 
 
 ALERT_LEVELS = {
-    "WATCH":      (0.40, 0.60, "Elevated risk detected. Monitor closely."),
+    "WATCH":      (0.40, 0.60, "Elevated risk. Monitor closely."),
     "WARNING":    (0.60, 0.80, "High risk. Prepare evacuation advisory."),
-    "EMERGENCY":  (0.80, 1.01, "CRITICAL. Activate MINEMA protocols immediately."),
+    "EMERGENCY":  (0.80, 1.01, "CRITICAL. Activate MINEMA now."),
 }
 
 
@@ -73,21 +73,14 @@ def build_alert_message(
 ) -> str:
     prob_pct = int(risk_probability * 100)
     level, action = get_alert_level(risk_probability)
-    drivers = " | ".join(f[0].replace("_", " ") for f in top_features[:2])
-    location = f"{district} / {sector} sector" if sector else district
-    gps_line = (
-        f"GPS: maps.google.com/?q={centroid_lat:.4f},{centroid_lon:.4f}\n"
-        if centroid_lat is not None and centroid_lon is not None
-        else ""
-    )
+    driver = top_features[0][0].replace("_", " ") if top_features else ""
+    location = f"{district}/{sector}" if sector else district
+    gps = f" {centroid_lat:.2f},{centroid_lon:.2f}" if centroid_lat is not None else ""
     return (
-        f"[LSEWS] {level}\n"
-        f"Location: {location}\n"
-        f"{gps_line}"
-        f"Unit: #{unit_id} | Risk: {prob_pct}%\n"
+        f"LSEWS {level} {location}{gps}\n"
+        f"Unit:{unit_id} Risk:{prob_pct}% Driver:{driver}\n"
         f"{action}\n"
-        f"Drivers: {drivers}\n"
-        f"Reply YES {unit_id} confirm / NO {unit_id} deny."
+        f"Reply YES {unit_id} or NO {unit_id}"
     )
 
 
