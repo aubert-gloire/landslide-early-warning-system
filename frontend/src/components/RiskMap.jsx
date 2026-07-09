@@ -106,7 +106,7 @@ export default function RiskMap() {
           {runDate  && <div style={{ opacity: 0.6 }}>Assessment: {runDate}</div>}
           {dataDate && <div style={{ opacity: 0.6 }}>Rainfall data to: {dataDate}</div>}
           {dataDate && runDate && dataDate !== meta.run_date && (
-            <div style={{ color: "var(--amber-text)", fontSize: 10, marginTop: 1 }}>CHIRPS ~4-day lag</div>
+            <div style={{ color: "var(--amber-text)", fontSize: 10, marginTop: 1 }}>IMERG/CHIRPS lag</div>
           )}
         </div>
       </div>

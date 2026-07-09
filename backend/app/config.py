@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     telerivet_project_id: str = ""
     telerivet_route_id: str = ""   # Android SIM route ID — leave blank to use Telerivet default
 
+    # NASA Earthdata (required for GPM IMERG download)
+    earthdata_token: str = ""
+    earthdata_username: str = ""
+    earthdata_password: str = ""
+
     # OpenTopography
     opentopo_api_key: str = ""
 

@@ -1,5 +1,5 @@
 """
-Inference wrapper — loaded once at FastAPI startup via RFModel in backend/app/ml/rf_model.py.
+Inference wrapper — loaded once at FastAPI startup via XGBModel in backend/app/ml/xgb_model.py.
 """
 
 from __future__ import annotations

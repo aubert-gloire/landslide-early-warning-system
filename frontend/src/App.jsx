@@ -146,7 +146,7 @@ export default function App() {
             }}>
               Slope-unit risk map — current assessment
             </p>
-            <RiskMap />
+            <RiskMap key={dashboardKey} />
             <p style={{
               marginTop: 12, fontSize: 11, color: "var(--chalk-dim)",
               borderLeft: "2px solid var(--line-strong)", paddingLeft: 10,
@@ -191,7 +191,7 @@ export default function App() {
             }}>
               District risk summary
             </p>
-            <DistrictCards />
+            <DistrictCards key={dashboardKey} />
           </>
         )}
       </main>
@@ -211,7 +211,7 @@ export default function App() {
           ✓ XGBoost · AUC 0.959 · FNR 8.3% · backtested 396 slope units
         </span>
         <span style={{ fontSize: 11, color: "var(--chalk-dim)" }}>
-          Data: CHIRPS Preliminary · Copernicus 30m DEM · Sentinel-2 NDVI · ISRIC soil · Africa's Talking
+          Data: GPM IMERG / CHIRPS · Copernicus 30m DEM · Sentinel-2 NDVI · ISRIC soil · USGS Seismic
         </span>
       </footer>
 

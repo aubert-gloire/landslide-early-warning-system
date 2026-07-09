@@ -1,5 +1,8 @@
 """
-Train the Random Forest model on the prepared feature matrix.
+Train the XGBoost model on the prepared feature matrix.
+
+Architecture: ImbPipeline(SimpleImputer -> SMOTE -> XGBClassifier)
+XGBoost was selected after a 4-model comparison (AUC=0.959, best of all candidates).
 
 Prerequisites:
   - scripts/setup_db.py all must have run successfully

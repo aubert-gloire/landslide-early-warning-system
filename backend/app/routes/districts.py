@@ -1,5 +1,10 @@
+import logging
+
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from ..database import get_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -9,6 +14,14 @@ TARGET_DISTRICTS = ["Gakenke", "Burera", "Musanze", "Gicumbi"]
 @router.get("/districts")
 async def get_districts():
     """Per-district summary: highest risk unit, recent alert count, last update."""
+    try:
+        return await _get_districts_inner()
+    except Exception as exc:
+        logger.exception("Error in /api/districts: %s", exc)
+        return JSONResponse(status_code=500, content={"detail": str(exc)})
+
+
+async def _get_districts_inner():
     db = get_db()
 
     latest_pred = await db.predictions.find_one(sort=[("date", -1)])
@@ -71,8 +84,8 @@ async def get_districts():
                 "avg_daily": {"$avg": "$daily_mm"},
             }},
         ]).to_list(length=1)
-        avg_5day = round(rain_agg[0]["avg_5day"], 1) if rain_agg else 0
-        avg_daily = round(rain_agg[0]["avg_daily"], 1) if rain_agg else 0
+        avg_5day  = round(rain_agg[0]["avg_5day"],  1) if rain_agg and rain_agg[0].get("avg_5day")  is not None else 0
+        avg_daily = round(rain_agg[0]["avg_daily"], 1) if rain_agg and rain_agg[0].get("avg_daily") is not None else 0
 
         # Top features from highest-risk prediction
         top_features = top_pred.get("top_features", []) if top_pred else []

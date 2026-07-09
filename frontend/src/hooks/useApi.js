@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "";
+const MAX_RETRIES = 4;
+const RETRY_DELAYS = [2000, 5000, 10000, 20000]; // ms — handles Render cold-start (~30s)
 
 export function useApi(path, deps = []) {
   const [data, setData] = useState(null);
@@ -10,15 +12,23 @@ export function useApi(path, deps = []) {
   const fetch_ = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const res = await fetch(`${BASE}${path}`);
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      setData(await res.json());
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
+    let lastError = null;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(`${BASE}${path}`);
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        setData(await res.json());
+        setLoading(false);
+        return;
+      } catch (e) {
+        lastError = e;
+        if (attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
+        }
+      }
     }
+    setError(lastError.message);
+    setLoading(false);
   }, [path]);
 
   useEffect(() => { fetch_(); }, [fetch_, ...deps]);

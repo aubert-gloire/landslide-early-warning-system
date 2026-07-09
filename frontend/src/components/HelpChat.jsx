@@ -2,89 +2,97 @@ import { useState, useEffect, useRef } from "react";
 
 const BOT_NAME = "EWS Guide";
 
-const WELCOME = `Hello! I'm the Landslide EWS assistant. I can help you understand how to use this system.\n\nTry one of the quick questions below, or type your own.`;
+const WELCOME = `Hello! I'm the EWS Guide — I can explain how this system works and help you use it.\n\nTry a quick question below or type your own.`;
 
 const QA = [
   {
-    triggers: ["risk map", "map", "colour", "color", "circle", "dot", "what do the"],
-    answer: `The Risk Map shows all 396 slope units in Rwanda's Northern Province as coloured circles:\n\n🟢 Green — low risk (below 50%)\n🟡 Amber — moderate risk (50–79%)\n🔴 Red — high risk (≥80%) — an SMS alert is sent\n\nClick any circle to see the unit ID, district, risk %, and whether an alert was dispatched.\n\nThe map legend shows two dates:\n• Assessment date — when the pipeline last ran\n• Rainfall data to — the most recent date for which CHIRPS rainfall data was available (typically 4 days behind today due to the CHIRPS Preliminary processing lag)\n\nThis means the map shows today's best possible risk assessment, not a real-time reading. This is standard for operational early warning systems — the data lag is transparent in the legend.`,
+    triggers: ["how does it work", "how does the system work", "explain the system", "overview", "what does this system do", "how does ews work"],
+    answer: `Every morning at 06:00 Kigali time, the system runs automatically:\n\n1. RAINFALL — NASA satellites measure how much rain fell across Northern Province yesterday. The data arrives with ~14 hours delay via GPM IMERG. If satellite data isn't ready, it falls back to CHIRPS (4-day lag).\n\n2. SCORING — Northern Province is divided into 396 slope units (sections of hillside). For each one, the system combines rainfall + slope angle + soil type + vegetation cover and runs it through an XGBoost model. Every slope unit gets a risk score from 0–100%.\n\n3. ALERTING — Any slope unit above the alert threshold triggers a warning. The system finds the registered officer for that district and sends an SMS through two providers simultaneously (Africa's Talking + Telerivet).\n\n4. RESPONSE — The officer replies YES or NO by SMS. That feedback is logged on the Alerts tab.\n\nThe dashboard shows a live risk map, district summary cards, rainfall gauges, and the full SMS log.`,
   },
   {
-    triggers: ["predict", "prediction", "run prediction", "feature", "input", "slope", "rainfall", "how to use predict"],
-    answer: `The Predict panel lets you test the XGBoost model against any input:\n\n1. Choose a scenario preset (high / medium / low risk), or fill in values manually.\n2. Required fields: Slope Angle, Daily Rainfall, 3-day and 5-day antecedent rainfall.\n3. Click "Run Prediction" — the model returns a risk %, risk level, and explanation of which features drove the result.\n4. Try the "Invalid" presets to see how the API rejects impossible values (e.g. negative rainfall) with a 422 error before the model even runs.`,
+    triggers: ["risk map", "map", "colour", "color", "polygon", "what do the colours", "what do colors mean"],
+    answer: `The Risk Map shows all 396 slope units in Northern Province as coloured polygons:\n\nGreen — low risk (below 50%)\nAmber — moderate risk (50–79%)\nRed — high risk (80%+) — SMS alert dispatched\n\nClick any polygon to see the unit ID, district, sector, risk %, and whether an alert was sent.\n\nThe map legend shows:\n• Assessment date — when the pipeline last ran\n• Rainfall data to — the date of the most recent rainfall data used\n\nNote: the map always shows the most recent pipeline results. Run the pipeline to refresh it with today's data.`,
   },
   {
-    triggers: ["alert", "sms", "send alert", "dispatch", "officer", "expert"],
-    answer: `SMS alerts are sent automatically during the pipeline run to registered field officers whenever a slope unit exceeds the 5% production risk threshold.\n\nYou can also send a manual alert from the Predict panel:\n• Fill in feature values and run a prediction.\n• In the "Expert SMS Dispatch" section, enter a district name and click "Send SMS Alert".\n• If the risk is below threshold, use "Force Send" to override — this is intended for meteorologists who have additional context.\n\nAll sent alerts appear in the Alerts tab with delivery status and officer feedback.`,
+    triggers: ["pipeline", "run pipeline", "what is pipeline", "trigger", "cron", "schedule", "daily", "what does pipeline do"],
+    answer: `The pipeline is the core process that runs every morning. Click "Run Pipeline" in the top-right to trigger it manually.\n\nWhat it does step by step:\n1. Downloads yesterday's rainfall from NASA GPM IMERG (~14h lag). Falls back to CHIRPS if IMERG isn't ready.\n2. Checks USGS earthquake data — if a M4.0+ earthquake occurred within 200km in the last 48 hours, the alert threshold is lowered automatically.\n3. Builds a feature matrix combining rainfall + terrain data for all 396 slope units.\n4. Runs XGBoost inference — scores every slope unit.\n5. Saves all predictions to the database.\n6. Sends SMS alerts to field officers for any unit above the threshold.\n\nIt also runs automatically at 10:00 AM Kigali time daily via GitHub Actions.`,
   },
   {
-    triggers: ["pipeline", "run pipeline", "what is pipeline", "trigger", "cron", "schedule", "daily"],
-    answer: `The pipeline is the core automated process. Click "Run Pipeline" in the top-right corner to start it.\n\nIt does the following in order:\n1. Downloads latest CHIRPS Preliminary rainfall data (4-day lag).\n2. Merges rainfall with terrain features (slope, TWI, NDVI, soil) for all 396 slope units.\n3. Runs the XGBoost model to score every unit.\n4. Sends SMS alerts for any unit above the risk threshold.\n5. Saves results to MongoDB.\n\nThe pipeline also runs automatically every day at 10:00 AM Kigali time via GitHub Actions.`,
+    triggers: ["alert", "sms", "send alert", "dispatch", "officer", "expert", "when are alerts sent", "who gets the sms"],
+    answer: `SMS alerts are sent automatically during the pipeline when any slope unit exceeds the risk threshold.\n\nEach SMS includes:\n• District and sector of the high-risk slope unit\n• Risk level (WATCH / WARNING / EMERGENCY)\n• Risk percentage\n• GPS coordinates of the highest-risk point\n• The main driver (e.g. "antecedent 5day mm")\n• Instructions: reply YES [unit_id] to confirm or NO [unit_id] to dispute\n\nAlerts go through two providers simultaneously — Africa's Talking and Telerivet (Android SIM route) — to guarantee delivery on MTN Rwanda.\n\nYou can also send a manual alert from the Predict panel using real field measurements.`,
   },
   {
-    triggers: ["district", "districts", "gakenke", "burera", "musanze", "gicumbi", "district card"],
-    answer: `The Districts tab shows a summary card for each of the 4 monitored districts in Northern Province:\n\n• Peak risk today — highest risk probability among all slope units in that district.\n• Slope units monitored — how many slope units are tracked.\n• Alerts (last 7 days) — count of SMS alerts dispatched recently.\n\nDistricts are colour-coded by accent (blue, green, amber, red) for quick identification.`,
+    triggers: ["seismic", "earthquake", "usgs", "tremor", "quake", "threshold lower"],
+    answer: `The system monitors earthquake activity near Northern Province via the USGS Earthquake API (free, checked on every pipeline run).\n\nIf a magnitude 4.0+ earthquake is detected within 200km of Northern Province in the last 48 hours, the alert threshold is automatically lowered from the default 5% to 3%. This means more slope units receive alerts during seismically active periods — because earthquakes loosen soil and make slopes more vulnerable to rainfall-triggered failure.\n\nThe pipeline log shows whether seismic activity was detected and what threshold was used for that run.`,
   },
   {
-    triggers: ["chirps", "rainfall data", "data source", "satellite", "where does", "where does the data"],
-    answer: `Rainfall data comes from CHIRPS v2 Preliminary — a satellite-derived rainfall product from the Climate Hazards Group at UC Santa Barbara.\n\nWhy Preliminary? The Final CHIRPS product has a ~3-week lag, which is too slow for early warning. The Preliminary product has only a ~4-day lag and the same spatial resolution (0.05°), making it suitable for near-real-time use.\n\nOther data sources:\n• Terrain (slope, TWI) — Copernicus 30m DEM\n• Vegetation — Sentinel-2 NDVI via Google Earth Engine\n• Soil — ISRIC SoilGrids\n• SMS delivery — Africa's Talking API`,
+    triggers: ["slope unit", "what is a slope unit", "unit", "396", "terrain unit", "hydrological", "what is a unit"],
+    answer: `A slope unit is a section of hillside that behaves as a single landslide risk area — bounded by ridge lines and valley lines, draining water in one consistent direction.\n\nThe system monitors 396 slope units across Northern Province. Each one is mapped as a polygon derived from the Copernicus 30m elevation model.\n\nWhy slope units? A pixel-based grid treats flat land and steep cliffs the same way. Slope units group terrain that physically behaves together under rainfall, which is more meaningful for landslide prediction. This approach follows Kuradusenge et al. (2020), who mapped Northern Province specifically.`,
   },
   {
-    triggers: ["model", "xgboost", "machine learning", "ai", "accuracy", "auc", "how accurate", "train"],
-    answer: `The system uses an XGBoost classifier trained on historical rainfall and terrain data for Northern Province Rwanda, following the thresholds from Kuradusenge et al. (2020).\n\nModel performance (5-fold cross-validation, 396 slope units):\n• AUC: 0.959\n• False Negative Rate: 8.3%\n• Production threshold: 5% (set low to minimise missed alerts)\n\nClass imbalance was handled with SMOTE oversampling inside an ImbPipeline to prevent data leakage.`,
+    triggers: ["predict", "prediction", "run prediction", "feature", "input", "how to use predict", "predict panel"],
+    answer: `The Predict panel lets you run the XGBoost model against any input values — useful for testing scenarios or dispatching a manual alert.\n\n1. Choose a preset (high / medium / low risk) or fill in values manually.\n2. Required: slope angle, daily rainfall, 3-day and 5-day antecedent rainfall.\n3. Click "Run Prediction" — you get a risk %, risk level, top driving features, and a plain-language explanation.\n4. To send a manual SMS: fill in the district name and click "Send SMS Alert". Use "Force Send" to override the threshold if you have additional field context.`,
   },
   {
-    triggers: ["login", "password", "sign in", "credentials", "account", "username", "who can"],
-    answer: `The login page has two options:\n\n1. District Officer — click your district button (Gakenke, Burera, Musanze, Gicumbi) or System Admin to sign in. No password required — the button identifies you.\n\n2. Guest — click "Continue as Guest" to access the full system without identifying as a specific officer.\n\nAll accounts (officers and guest) have identical access to every tab and feature. The district name shown in the header is for identification only — it does not restrict what you can see or do.`,
+    triggers: ["district", "districts", "gakenke", "burera", "musanze", "gicumbi", "district card", "district tab"],
+    answer: `The Districts tab shows a summary card for each of the 4 monitored districts:\n\n• Peak risk today — highest risk score among all slope units in that district\n• Slope units monitored — total units tracked in that district\n• Alerts (last 7 days) — SMS alerts sent recently\n• Highest-risk sector — the sector name within the district carrying the most risk\n\nCards update automatically after every pipeline run.`,
   },
   {
-    triggers: ["threshold", "probability", "5%", "percent", "what does", "what is the threshold"],
-    answer: `The production risk threshold is set at 5% probability.\n\nThis means: if the model predicts a ≥5% chance of landslide for a slope unit, an SMS alert is sent. The threshold is intentionally low to minimise false negatives (missed real events), at the cost of more false positives.\n\nThe risk bands displayed on the map use higher thresholds for visual clarity:\n• Low: below 50%\n• Moderate: 50–79%\n• High: 80%+\n\nBut alerts are always sent at 5%+.`,
+    triggers: ["data source", "where does the data", "rainfall data", "satellite", "imerg", "chirps", "gpm", "nasa"],
+    answer: `Rainfall (primary): GPM IMERG Late Daily — NASA satellite rainfall, available ~14 hours after the day ends. Authenticated via NASA Earthdata.\n\nRainfall (fallback): CHIRPS v2 Preliminary — UC Santa Barbara product, ~4-day lag. Used when IMERG isn't yet available for the target date.\n\nTerrain: Copernicus 30m DEM — slope angle, aspect, Topographic Wetness Index.\n\nVegetation: Sentinel-2 NDVI via Google Earth Engine.\n\nSoil: ISRIC SoilGrids — soil class per slope unit.\n\nSeismic: USGS Earthquake Hazards Program API — free, no auth, queried on every pipeline run.\n\nSMS delivery: Africa's Talking + Telerivet (parallel dispatch).`,
   },
   {
-    triggers: ["feedback", "confirm", "denied", "reply", "officer feedback", "sms reply"],
-    answer: `After an SMS alert is sent, field officers can reply by SMS:\n• Reply "Y" to confirm the alert (ground-truthed event)\n• Reply "N" to deny it (false alarm)\n\nFeedback is shown in the Alerts tab under "Officer Feedback" and tracked in the stats panel at the top (Confirmed / Denied / Awaiting). The confirmation rate gives a real-world accuracy measure over time.`,
+    triggers: ["model", "xgboost", "machine learning", "ai", "accuracy", "auc", "how accurate", "train", "how was the model trained"],
+    answer: `The model is XGBoost — a gradient boosting algorithm trained on historical rainfall and terrain data for Northern Province Rwanda.\n\nTraining pipeline: SimpleImputer → SMOTE oversampling → XGBClassifier, run inside a 5-fold cross-validation so no data leaks between folds.\n\nPerformance:\n• AUC: 0.959 (best among 4 models tested)\n• False Negative Rate: 8.3% at production threshold\n• Production threshold: 5% — set low to minimise missed real events\n\nTop features by importance:\n1. 5-day antecedent rainfall (46%)\n2. 3-day antecedent rainfall (33%)\n3. Daily rainfall (5%)\n\nXGBoost outperformed Random Forest, Logistic Regression, and SVM on this dataset.`,
   },
   {
-    triggers: ["slope unit", "what is a slope unit", "unit", "396", "terrain unit", "hydrological"],
-    answer: `A slope unit is a hydrological terrain subdivision — an area of land defined by ridge lines and valley lines where water drains in a consistent direction.\n\nThis system monitors 396 slope units across Northern Province Rwanda. Each unit is a polygon derived from the Copernicus 30m DEM using watershed analysis.\n\nWhy slope units instead of pixels? They are more physically meaningful for landslide modelling — a single slope unit represents one coherent hillside that behaves uniformly under rainfall. This is the standard approach in the scientific literature (Kuradusenge et al., 2020).`,
-  },
-  {
-    triggers: ["antecedent", "3-day", "5-day", "10-day", "prior rainfall", "what is antecedent", "cumulative"],
-    answer: `Antecedent rainfall is the cumulative rainfall that fell in the days before today — it measures how saturated the soil already is.\n\n• 3-day antecedent — last 3 days total (mm). High values mean shallow soil layers are saturated.\n• 5-day antecedent — last 5 days total (mm). Critical threshold: above 150mm significantly raises risk.\n• 10-day antecedent — last 10 days total (mm). Indicates deeper clay layer saturation.\n\nResearch shows antecedent rainfall is often more important than daily rainfall alone — a moderate storm on already-saturated ground is far more dangerous than heavy rain on dry soil.`,
+    triggers: ["antecedent", "3-day", "5-day", "10-day", "prior rainfall", "what is antecedent", "cumulative", "soil saturation"],
+    answer: `Antecedent rainfall is how much rain fell in the days before today — it tells the model how saturated the soil already is before a new storm arrives.\n\n• 3-day total — shallow soil saturation. High values mean surface layers are already wet.\n• 5-day total — the single most important feature in the model (46% importance). Critical level: above 150mm.\n• 10-day total — indicates deeper clay layer saturation.\n\nThe key insight: a 30mm storm on soil that already received 120mm in the past week is far more dangerous than 30mm on dry ground. Antecedent rainfall captures this.`,
   },
   {
     triggers: ["twi", "topographic wetness", "ndvi", "vegetation index", "what is twi", "what is ndvi"],
-    answer: `TWI — Topographic Wetness Index — measures how likely water is to accumulate at a point based on slope and upstream drainage area. Higher TWI means water pools there more easily.\n• Critical threshold: TWI above 12 significantly raises landslide risk.\n• Derived from the Copernicus 30m DEM.\n\nNDVI — Normalised Difference Vegetation Index — measures vegetation density from Sentinel-2 satellite imagery.\n• Range: -1 to 1. Values below 0.35 indicate sparse or absent vegetation.\n• Why it matters: vegetation roots stabilise slopes. Deforested or degraded hillsides (low NDVI) are significantly more susceptible to failure.`,
+    answer: `TWI (Topographic Wetness Index) — measures where water naturally collects based on slope steepness and how much land drains into a point. A high TWI means water funnels there from uphill.\n• Critical level: TWI above 12.\n• Derived from the Copernicus 30m elevation model.\n\nNDVI (Normalised Difference Vegetation Index) — measures vegetation density from Sentinel-2 satellite imagery. Range is -1 to 1.\n• Below 0.35: sparse vegetation, low root cohesion, higher failure risk.\n• Why it matters: roots hold soil together. Deforested or degraded hillsides lose this mechanical anchor and fail more easily under rainfall.`,
   },
   {
-    triggers: ["log", "pipeline log", "cache hit", "mongodb", "0 units", "zero alerts", "no alert", "what does it mean", "stream"],
-    answer: `The pipeline log streams each step in real time as the run progresses. Here is what the key messages mean:\n\n• "MongoDB cache hit" — recent rainfall data was found in the database, so no CHIRPS download was needed. This is the fast path.\n• "Scoring all slope units with XGBoost" — the model is running across all 396 units.\n• "0 units above threshold" — the system ran successfully and found no high-risk units today. This is normal during dry periods. It is not an error.\n• "✓ Pipeline complete" — all steps finished. The risk map and district cards are now updated.\n\nIf you see a red "Error" status, it usually means a network issue with the CHIRPS download or the API server.`,
+    triggers: ["threshold", "5%", "percent", "what is the threshold", "alert threshold", "why 5"],
+    answer: `The alert threshold is 5% probability.\n\nIf the model gives any slope unit a 5% or higher chance of landslide, an SMS is sent. This is intentionally low — in life-safety systems, it is better to send more alerts (some false alarms) than to miss a real event.\n\nThe map uses different visual thresholds for clarity:\n• Green: below 50%\n• Amber: 50–79%\n• Red: 80%+\n\nBut the SMS fires at 5%+, well below what shows as red on the map. After an earthquake is detected, the threshold drops further to 3%.`,
   },
   {
-    triggers: ["alerts tab", "alert table", "alert history", "view alerts", "past alerts", "how to see alerts", "filter"],
-    answer: `The Alerts tab shows a log of every SMS alert dispatched by the system.\n\nHow to use it:\n• Use the district dropdown to filter alerts by district (Gakenke, Burera, Musanze, Gicumbi).\n• Click "Refresh" to reload the latest data.\n• The stats panel at the top shows totals: alerts sent, confirmed, denied, awaiting feedback, and confirmation rate.\n\nColumn meanings:\n• Sent at — date and time the SMS was dispatched\n• Unit ID — the slope unit that triggered the alert\n• Risk % — model probability at the time\n• Status — SMS delivery status (sent / delivered / failed)\n• Officer Feedback — Y/N reply from the field officer`,
+    triggers: ["log", "pipeline log", "cache hit", "0 units", "zero alerts", "no alert", "what does it mean", "stream", "pipeline message"],
+    answer: `The pipeline log streams live as the run progresses. Key messages:\n\n"MongoDB cache hit" — rainfall data already saved from an earlier run today, skipping the download step.\n"IMERG success" — NASA satellite rainfall downloaded for all 396 units.\n"Falling back to CHIRPS" — IMERG not yet available, using the backup source.\n"No seismic activity detected" — USGS check passed, using default threshold.\n"Seismic alert" — earthquake found nearby, threshold lowered for this run.\n"0 units above threshold" — no high-risk areas today. Normal during dry season. Not an error.\n"Pipeline complete" — finished. Risk map and district cards are now updated.`,
   },
   {
-    triggers: ["why northern province", "why 4 districts", "why not all rwanda", "coverage", "which area", "geographic", "scope"],
-    answer: `The system currently covers Northern Province Rwanda — specifically the districts of Gakenke, Burera, Musanze, and Gicumbi.\n\nThis focus was chosen because:\n• Northern Province has the highest historical landslide incidence in Rwanda, driven by steep volcanic terrain and high seasonal rainfall.\n• The training dataset (Kuradusenge et al., 2020) was built specifically for this region, so the model's learned thresholds are calibrated for Northern Province soil, slope, and rainfall patterns.\n• MINEMA (National Disaster Management Authority) has identified this province as a priority zone for early warning.\n\nExtending coverage to other provinces would require retraining with region-specific data.`,
+    triggers: ["feedback", "confirm", "denied", "reply", "officer feedback", "sms reply", "yes no"],
+    answer: `After receiving an SMS alert, field officers reply by text:\n• Reply "YES [unit_id]" to confirm conditions on the ground match the alert\n• Reply "NO [unit_id]" to report the alert was a false alarm\n\nFeedback appears in the Alerts tab and contributes to the system's real-world accuracy tracking over time. The confirmation rate — confirmed alerts divided by total alerts — is the operational accuracy measure.`,
   },
   {
-    triggers: ["session", "sign out", "logout", "how long", "expires", "switch account", "signed out", "session expired"],
-    answer: `Each login session lasts 24 hours. After 24 hours your session expires automatically and you will be asked to sign in again.\n\nTo sign out manually: click the "Sign out" button in the top-right corner of the header. This clears your session from the browser immediately.\n\nTo switch accounts: sign out first, then sign in with the other username. All accounts share the same password.\n\nNote: sessions are stored in your browser's sessionStorage, so closing the browser tab will also end your session.`,
+    triggers: ["alerts tab", "alert table", "alert history", "view alerts", "past alerts", "filter", "how to see alerts"],
+    answer: `The Alerts tab shows every SMS dispatched by the system.\n\n• Filter by district using the dropdown.\n• The stats panel at the top shows totals: alerts sent, confirmed, denied, awaiting feedback, confirmation rate.\n\nColumn meanings:\n• Sent at — date and time\n• Unit ID — slope unit that triggered the alert\n• Risk % — model score at the time\n• Status — SMS delivery result (sent / delivered / failed)\n• Officer Feedback — YES/NO reply received`,
+  },
+  {
+    triggers: ["why northern province", "why 4 districts", "why not all rwanda", "coverage", "which area", "scope"],
+    answer: `The system covers Northern Province — Gakenke, Burera, Musanze, and Gicumbi — for three reasons:\n\n1. Highest risk: Northern Province has Rwanda's highest historical landslide rate, driven by steep volcanic slopes and heavy seasonal rainfall.\n\n2. Calibrated model: the training data (Kuradusenge et al., 2020) was built specifically for this region. The model's thresholds are calibrated to Northern Province soils, slopes, and rainfall patterns — not Rwanda as a whole.\n\n3. MINEMA priority: Rwanda's national disaster authority has designated Northern Province as the primary landslide early warning zone.\n\nExpanding to other provinces would require region-specific training data and retraining.`,
+  },
+  {
+    triggers: ["login", "sign in", "credentials", "account", "who can", "how do i log in"],
+    answer: `On the login page, click your district button (Gakenke, Burera, Musanze, Gicumbi) or System Admin. No password required — the button identifies you as the registered officer for that district.\n\nTo access without identifying yourself, click "Continue as Guest".\n\nAll roles have identical access to every tab and feature. The district shown in the header is for identification in the SMS log — it does not restrict what you can view or do.\n\nSessions last 24 hours. Close the browser tab or click "Sign out" to end your session early.`,
+  },
+  {
+    triggers: ["what does this not do", "limitations", "what can't it do", "does not", "limitation", "not replace"],
+    answer: `What the system does NOT do:\n\n• It does not replace MINEMA or Meteo Rwanda — all alerts are decision support, not orders to evacuate.\n• It does not predict the exact location a landslide will occur — only which slope units carry elevated risk.\n• It does not have ground-level rain gauges — it uses satellite estimates with a ~14 hour delay.\n• It does not cover all of Rwanda — only Northern Province (4 districts).\n• It was trained on 12 confirmed landslide events — a real operational model would need hundreds.`,
   },
 ];
 
-const FALLBACK = `I'm not sure about that specific question. Try asking about:\n\n• What a slope unit is\n• The risk map and colour coding\n• What antecedent rainfall means\n• How to run a prediction\n• How SMS alerts work\n• What the pipeline log messages mean\n• The XGBoost model and accuracy\n• Why the system covers Northern Province\n• Data sources (CHIRPS, DEM, NDVI, TWI)`;
+const FALLBACK = `I'm not sure about that. Try asking:\n\n• How does the system work?\n• What does the pipeline do?\n• What is a slope unit?\n• How does the risk map work?\n• When are SMS alerts sent?\n• What data sources does it use?\n• How accurate is the model?\n• What does the system not do?`;
 
 const QUICK_REPLIES = [
-  "What is a slope unit?",
-  "How does the risk map work?",
-  "How do I run a prediction?",
-  "When are SMS alerts sent?",
+  "How does the system work?",
   "What does the pipeline do?",
-  "Why only Northern Province?",
+  "What is a slope unit?",
+  "When are SMS alerts sent?",
   "How accurate is the model?",
+  "What data sources does it use?",
+  "What does the system not do?",
 ];
 
 function matchAnswer(text) {

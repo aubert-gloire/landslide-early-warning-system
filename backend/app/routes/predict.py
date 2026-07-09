@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from ..config import get_settings
 from ..database import get_db
-from ..ml.rf_model import RFModel
+from ..ml.xgb_model import XGBModel
 from ..services.sms import send_alert
 
 router = APIRouter()
@@ -210,7 +210,7 @@ async def predict_point(body: PredictRequest):
     artifacts_dir = settings.artifacts_path()
 
     try:
-        model_wrapper = RFModel.load(artifacts_dir)
+        model_wrapper = XGBModel.load(artifacts_dir)
     except FileNotFoundError:
         raise HTTPException(
             status_code=503,
@@ -307,7 +307,7 @@ async def predict_and_alert(body: ManualAlertRequest):
     """
     settings = get_settings()
     try:
-        model_wrapper = RFModel.load(settings.artifacts_path())
+        model_wrapper = XGBModel.load(settings.artifacts_path())
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="Model not loaded.")
 

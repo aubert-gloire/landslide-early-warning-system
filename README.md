@@ -12,19 +12,19 @@ ML-based daily landslide risk prediction and SMS alerting for Gakenke, Burera, M
 CHIRPS v3 rainfall (daily) ─┐
 Copernicus DEM 30m ─────────┤─► Feature Matrix (8 cols, per slope unit per day)
 Sentinel-2 NDVI ────────────┤         ▼
-ISRIC SoilGrids ────────────┘   Random Forest (500 trees)
+ISRIC SoilGrids ────────────┘   XGBoost (AUC=0.959, threshold=0.05)
                                       ▼
                               Probability per slope unit
                                       ▼
-                    ┌──── prob ≥ 0.80 ────┐
+                    ┌──── prob ≥ 0.05 ────┐
                     ▼                     ▼
-              MongoDB Atlas          Africa's Talking SMS
+              MongoDB Atlas          Africa's Talking / Telerivet SMS
               (all predictions)      (district officers)
                     ▼
               FastAPI + React dashboard
 ```
 
-**Key feature:** 5-day antecedent rainfall accumulation (Kuradusenge et al. 2020 — pushes RF accuracy from 89% to 98.74% on Rwandan terrain)
+**Key feature:** 5-day antecedent rainfall accumulation (Kuradusenge et al. 2020 — the top XGBoost driver, importance=0.46) and USGS seismic monitoring (M4.0+, 200km radius, 48h window).
 
 ---
 
