@@ -93,19 +93,40 @@ class DataPipeline:
         threshold = self.settings.alert_probability_threshold
         await log(f"Model ready — alert threshold: {threshold}")
 
-        # Step 1 & 2
-        await log("Fetching CHIRPS v2 rainfall from UCSB Climate Hazards Center…")
-        rainfall_df = self.fetch_chirps(run_date)
-        max_rain = float(rainfall_df["antecedent_5day_mm"].max()) if len(rainfall_df) else 0
-        await log(f"Rainfall fetched — {len(rainfall_df)} units, max 5-day antecedent: {max_rain:.1f} mm")
-
-        # Persist per-unit daily rainfall to MongoDB for popup sparklines
-        await log("Saving rainfall records to MongoDB…")
+        # Step 1 & 2 — rainfall: MongoDB cache first, CHIRPS download as fallback
         rainfall_date = (run_date - timedelta(days=1)).isoformat()
         from pymongo import UpdateOne as _UpdateOne
-        rain_upserts = []
-        for _, row in rainfall_df.iterrows():
-            rain_upserts.append(
+
+        cached = await db.rainfall_records.find({"date": rainfall_date}).to_list(length=5000)
+
+        if len(cached) >= 300:
+            # Fast path: all units already saved from a previous run today
+            await log(f"Rainfall cache hit for {rainfall_date} — {len(cached)} units from MongoDB (skipping CHIRPS download)")
+            history_start = (run_date - timedelta(days=11)).isoformat()
+            history_docs = await db.rainfall_records.find(
+                {"date": {"$gte": history_start, "$lte": rainfall_date}},
+                sort=[("date", 1)],
+            ).to_list(length=50000)
+            rainfall_df = pd.DataFrame([
+                {"unit_id": r["slope_unit_id"], "date": r["date"], "daily_mm": float(r.get("daily_mm") or 0)}
+                for r in history_docs
+            ])
+            rainfall_df["date"] = pd.to_datetime(rainfall_df["date"])
+            rainfall_df = rainfall_df.sort_values(["unit_id", "date"])
+            for window, col in [(3, "antecedent_3day_mm"), (5, "antecedent_5day_mm"), (10, "antecedent_10day_mm")]:
+                rainfall_df[col] = (
+                    rainfall_df.groupby("unit_id")["daily_mm"]
+                    .transform(lambda s, w=window: s.rolling(w, min_periods=1).sum())
+                )
+            rainfall_df["rainfall_intensity_ratio"] = (
+                rainfall_df["daily_mm"] / (rainfall_df["antecedent_5day_mm"] + 1.0)
+            ).round(4)
+            rainfall_df = rainfall_df[rainfall_df["date"] == pd.Timestamp(rainfall_date)].reset_index(drop=True)
+        else:
+            # Slow path: download from UCSB and save to MongoDB for next time
+            await log("Fetching CHIRPS v2 rainfall from UCSB Climate Hazards Center…")
+            rainfall_df = self.fetch_chirps(run_date)
+            rain_upserts = [
                 _UpdateOne(
                     {"slope_unit_id": int(row["unit_id"]), "date": rainfall_date},
                     {"$set": {
@@ -115,10 +136,14 @@ class DataPipeline:
                     }},
                     upsert=True,
                 )
-            )
-        if rain_upserts:
-            await db.rainfall_records.bulk_write(rain_upserts, ordered=False)
-        await log(f"Saved {len(rain_upserts)} rainfall records")
+                for _, row in rainfall_df.iterrows()
+            ]
+            if rain_upserts:
+                await db.rainfall_records.bulk_write(rain_upserts, ordered=False)
+            await log(f"Saved {len(rain_upserts)} rainfall records to MongoDB")
+
+        max_rain = float(rainfall_df["antecedent_5day_mm"].max()) if len(rainfall_df) else 0
+        await log(f"Rainfall ready — {len(rainfall_df)} units, max 5-day antecedent: {max_rain:.1f} mm")
 
         await log("Building feature matrix (terrain + NDVI + soil + rainfall)…")
         feature_df = self.build_feature_matrix(rainfall_df)
