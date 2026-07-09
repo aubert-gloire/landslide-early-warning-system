@@ -60,6 +60,23 @@ async def get_districts():
             unit_doc = await db.slope_units.find_one({"unit_id": top_pred["slope_unit_id"]})
             highest_sector = unit_doc.get("sector") if unit_doc else None
 
+        # Average rainfall for district from latest records
+        rain_agg = await db.rainfall_records.aggregate([
+            {"$match": {"slope_unit_id": {"$in": unit_ids}}},
+            {"$sort": {"date": -1}},
+            {"$limit": len(unit_ids)},
+            {"$group": {
+                "_id": None,
+                "avg_5day": {"$avg": "$antecedent_5day_mm"},
+                "avg_daily": {"$avg": "$daily_mm"},
+            }},
+        ]).to_list(length=1)
+        avg_5day = round(rain_agg[0]["avg_5day"], 1) if rain_agg else 0
+        avg_daily = round(rain_agg[0]["avg_daily"], 1) if rain_agg else 0
+
+        # Top features from highest-risk prediction
+        top_features = top_pred.get("top_features", []) if top_pred else []
+
         summaries.append({
             "district": district,
             "unit_count": len(unit_ids),
@@ -69,6 +86,9 @@ async def get_districts():
             "alert_level": alert_level,
             "recent_alert_count": alert_count,
             "last_update": latest_date,
+            "avg_5day_mm": avg_5day,
+            "avg_daily_mm": avg_daily,
+            "top_features": top_features,
         })
 
     return {"districts": summaries}

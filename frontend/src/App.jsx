@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import Dashboard from "./components/Dashboard";
 import RiskMap from "./components/RiskMap";
 import AlertTable from "./components/AlertTable";
 import DistrictCards from "./components/DistrictCards";
@@ -7,11 +8,11 @@ import PredictPanel from "./components/PredictPanel";
 import Login from "./components/Login";
 import HelpChat from "./components/HelpChat";
 
-const TABS = ["Risk Map", "Predict", "Alerts", "Districts"];
+const TABS = ["Overview", "Risk Map", "Predict", "Alerts", "Districts"];
 
 export default function App() {
   const [officer, setOfficer]   = useState(null);
-  const [activeTab, setActiveTab] = useState("Risk Map");
+  const [activeTab, setActiveTab] = useState("Overview");
   const [showLog, setShowLog]   = useState(false);
   const [toast, setToast]       = useState(null);
 
@@ -121,6 +122,10 @@ export default function App() {
           <div style={{ marginBottom: 24 }}>
             <PipelineLog onDone={handlePipelineDone} onClose={() => setShowLog(false)} />
           </div>
+        )}
+
+        {activeTab === "Overview" && (
+          <Dashboard onRunPipeline={() => setShowLog(true)} />
         )}
 
         {activeTab === "Risk Map" && (

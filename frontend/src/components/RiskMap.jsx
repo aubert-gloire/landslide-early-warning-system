@@ -38,24 +38,24 @@ export default function RiskMap() {
     if (layerRef.current) layerRef.current.remove();
 
     layerRef.current = L.geoJSON(data, {
-      pointToLayer: (f, latlng) => {
-        const p    = f.properties;
-        const band = riskBand(p.risk_probability);
-        return L.circleMarker(latlng, {
-          radius:      8 + p.risk_probability * 6,
+      style: (feature) => {
+        const band = riskBand(feature.properties.risk_probability);
+        return {
           fillColor:   RISK_COLORS[band],
           color:       "#14171A",
-          weight:      1,
-          fillOpacity: 0.85,
-        });
+          weight:      0.5,
+          fillOpacity: 0.75,
+        };
       },
       onEachFeature: (f, lyr) => {
         const p = f.properties;
         lyr.bindPopup(
-          `<strong>${p.unit_id}</strong> &middot; ${p.district}<br/>` +
+          `<strong>Unit ${p.unit_id}</strong> &middot; ${p.district}<br/>` +
           `Risk: ${(p.risk_probability * 100).toFixed(0)}%<br/>` +
-          (p.alert_triggered ? "<span style='color:#E2836F'>SMS alert dispatched</span>" : "Below alert threshold")
+          (p.alert_triggered ? "<span style='color:#E2836F'>&#9888; SMS alert dispatched</span>" : "Below alert threshold")
         );
+        lyr.on("mouseover", () => lyr.setStyle({ fillOpacity: 1, weight: 1.5 }));
+        lyr.on("mouseout",  () => lyr.setStyle({ fillOpacity: 0.75, weight: 0.5 }));
       },
     }).addTo(map);
 
