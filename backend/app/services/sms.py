@@ -39,9 +39,11 @@ def _patch_requests_ssl():
 
 def _init_at():
     settings = get_settings()
+    username = settings.at_username.strip()
     if not settings.is_production:
         _patch_requests_ssl()
-    africastalking.initialize(settings.at_username, settings.at_api_key)
+    africastalking.initialize(username, settings.at_api_key)
+    logger.info("AT initialised — username=%s production=%s", username, settings.is_production)
     return africastalking.SMS
 
 
@@ -125,7 +127,9 @@ async def send_alert(
 
     try:
         sms = _init_at()
-        sender = settings.at_sender_id if settings.is_production else None
+        # Strip quotes/whitespace — Render sometimes stores "" if field left with quotes
+        raw_sender = (settings.at_sender_id or "").strip().strip('"').strip("'")
+        sender = raw_sender if raw_sender else None
         response = sms.send(message, [phone], sender_id=sender)
         recipients = response.get("SMSMessageData", {}).get("Recipients", [])
         status = recipients[0].get("status", "failed") if recipients else "failed"
