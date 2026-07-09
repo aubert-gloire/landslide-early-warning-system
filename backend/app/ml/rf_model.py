@@ -30,7 +30,7 @@ class RFModel:
             )
 
         self._model = joblib.load(model_path)
-        logger.info("RF model loaded from %s", model_path)
+        logger.info("XGBoost model loaded from %s", model_path)
 
         if meta_path.exists():
             with open(meta_path) as f:

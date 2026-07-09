@@ -89,7 +89,7 @@ class DataPipeline:
         run_date = date.today()
         db = get_db()
 
-        await log("Loading Random Forest model…")
+        await log("Loading XGBoost model…")
         model = self._get_model()
         await log(f"Model ready — alert threshold: {model.production_threshold}")
 
@@ -182,7 +182,7 @@ class DataPipeline:
         await log(f"Feature matrix ready — {len(feature_df)} units × 8 features")
 
         # Step 3 — inference
-        await log("Scoring all slope units with Random Forest…")
+        await log("Scoring all slope units with XGBoost…")
         predictions_df = model.predict(feature_df)
         n_alerts = int(predictions_df["alert_triggered"].sum())
         max_prob = float(predictions_df["risk_probability"].max())
