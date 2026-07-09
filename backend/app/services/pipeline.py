@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import geopandas as gpd
@@ -98,6 +98,27 @@ class DataPipeline:
         rainfall_df = self.fetch_chirps(run_date)
         max_rain = float(rainfall_df["antecedent_5day_mm"].max()) if len(rainfall_df) else 0
         await log(f"Rainfall fetched — {len(rainfall_df)} units, max 5-day antecedent: {max_rain:.1f} mm")
+
+        # Persist per-unit daily rainfall to MongoDB for popup sparklines
+        await log("Saving rainfall records to MongoDB…")
+        rainfall_date = (run_date - timedelta(days=1)).isoformat()
+        from pymongo import UpdateOne as _UpdateOne
+        rain_upserts = []
+        for _, row in rainfall_df.iterrows():
+            rain_upserts.append(
+                _UpdateOne(
+                    {"slope_unit_id": int(row["unit_id"]), "date": rainfall_date},
+                    {"$set": {
+                        "slope_unit_id": int(row["unit_id"]),
+                        "date": rainfall_date,
+                        "daily_mm": float(row.get("daily_mm", 0) or 0),
+                    }},
+                    upsert=True,
+                )
+            )
+        if rain_upserts:
+            await db.rainfall_records.bulk_write(rain_upserts, ordered=False)
+        await log(f"Saved {len(rain_upserts)} rainfall records")
 
         await log("Building feature matrix (terrain + NDVI + soil + rainfall)…")
         feature_df = self.build_feature_matrix(rainfall_df)
