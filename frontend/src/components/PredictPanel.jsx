@@ -120,6 +120,9 @@ export default function PredictPanel() {
   const [result, setResult] = useState(null);
   const [validationErrors, setValidationErrors] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [alertDistrict, setAlertDistrict] = useState("");
+  const [alertLoading, setAlertLoading] = useState(false);
+  const [alertResult, setAlertResult] = useState(null);
 
   function handleChange(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -192,6 +195,34 @@ export default function PredictPanel() {
       setValidationErrors([{ field: "network", message: `Network error: ${err.message}` }]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSendAlert(force = false) {
+    setAlertLoading(true);
+    setAlertResult(null);
+    const body = { district: alertDistrict, force };
+    for (const [k, meta] of Object.entries(FIELD_META)) {
+      const raw = form[k].trim();
+      if (raw === "") continue;
+      body[k] = k === "soil_class" ? parseInt(raw, 10) : parseFloat(raw);
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/predict/alert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAlertResult({ error: data.detail || `Error ${res.status}` });
+      } else {
+        setAlertResult(data);
+      }
+    } catch (err) {
+      setAlertResult({ error: `Network error: ${err.message}` });
+    } finally {
+      setAlertLoading(false);
     }
   }
 
@@ -311,7 +342,7 @@ export default function PredictPanel() {
                 </span>
                 {result.alert_triggered && (
                   <span style={{ color: "#dc2626", fontSize: 12, fontWeight: 600 }}>
-                    ⚠ SMS ALERT WOULD BE SENT
+                    ⚠ ALERT THRESHOLD EXCEEDED
                   </span>
                 )}
               </div>
@@ -340,6 +371,73 @@ export default function PredictPanel() {
               {/* Risk narrative */}
               <div style={{ ...styles.sectionTitle, marginTop: 4 }}>Model Reasoning</div>
               <div style={styles.narrative}>{result.risk_narrative}</div>
+            </div>
+
+            {/* Expert SMS dispatch */}
+            <div style={{ ...styles.panel, marginBottom: 16, borderColor: result.alert_triggered ? "#dc2626" : "#334155" }}>
+              <div style={styles.sectionTitle}>Expert SMS Dispatch</div>
+              <p style={{ fontSize: 12, color: "#64748b", marginBottom: 12, marginTop: 0 }}>
+                Enter the district name and send an SMS alert directly to registered field officers.
+                {!result.alert_triggered && " The model is below threshold — use Force Send to override."}
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+                <input
+                  type="text"
+                  placeholder="District (e.g. Musanze)"
+                  value={alertDistrict}
+                  onChange={(e) => { setAlertDistrict(e.target.value); setAlertResult(null); }}
+                  style={{ ...styles.input, flex: 1, minWidth: 160 }}
+                />
+                <button
+                  onClick={() => handleSendAlert(false)}
+                  disabled={alertLoading || !alertDistrict.trim() || !result.alert_triggered}
+                  style={{
+                    ...styles.btn, width: "auto", padding: "8px 16px", marginTop: 0,
+                    background: result.alert_triggered ? "#dc2626" : "#475569",
+                    cursor: (alertLoading || !alertDistrict.trim() || !result.alert_triggered) ? "not-allowed" : "pointer",
+                    opacity: (!alertDistrict.trim() || !result.alert_triggered) ? 0.5 : 1,
+                  }}
+                >
+                  {alertLoading ? "Sending…" : "Send SMS Alert"}
+                </button>
+                <button
+                  onClick={() => handleSendAlert(true)}
+                  disabled={alertLoading || !alertDistrict.trim()}
+                  style={{
+                    ...styles.btn, width: "auto", padding: "8px 16px", marginTop: 0,
+                    background: "#78350f",
+                    cursor: (alertLoading || !alertDistrict.trim()) ? "not-allowed" : "pointer",
+                    opacity: !alertDistrict.trim() ? 0.5 : 1,
+                    fontSize: 12,
+                  }}
+                >
+                  Force Send
+                </button>
+              </div>
+
+              {alertResult && !alertResult.error && alertResult.sent && (
+                <div style={{ marginTop: 12, background: "#052e16", border: "1px solid #16a34a", borderRadius: 6, padding: 12 }}>
+                  <div style={{ color: "#86efac", fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                    ✓ SMS sent to {alertResult.sms_count} recipient{alertResult.sms_count !== 1 ? "s" : ""} in {alertResult.district}
+                    {alertResult.forced && <span style={{ color: "#fcd34d" }}> (expert override)</span>}
+                  </div>
+                  {alertResult.recipients.map((r) => (
+                    <div key={r.alert_id} style={{ fontSize: 12, color: "#4ade80" }}>
+                      → {r.name} ({r.phone})
+                    </div>
+                  ))}
+                </div>
+              )}
+              {alertResult && !alertResult.error && !alertResult.sent && (
+                <div style={{ marginTop: 12, background: "#1e293b", borderRadius: 6, padding: 10, fontSize: 12, color: "#94a3b8" }}>
+                  {alertResult.reason}
+                </div>
+              )}
+              {alertResult && alertResult.error && (
+                <div style={{ marginTop: 12, background: "#450a0a", borderRadius: 6, padding: 10, fontSize: 12, color: "#fca5a5" }}>
+                  {alertResult.error}
+                </div>
+              )}
             </div>
 
             {/* Top features */}

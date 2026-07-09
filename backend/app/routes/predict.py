@@ -20,7 +20,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from ..config import get_settings
+from ..database import get_db
 from ..ml.rf_model import RFModel
+from ..services.sms import send_alert
 
 router = APIRouter()
 
@@ -279,4 +281,101 @@ async def predict_point(body: PredictRequest):
             "daily_mm":           body.daily_mm,
             "antecedent_5day_mm": body.antecedent_5day_mm,
         },
+    }
+
+
+class ManualAlertRequest(PredictRequest):
+    district: str = Field(
+        ..., min_length=1,
+        description="District name to alert (must match recipients in MongoDB).",
+        json_schema_extra={"example": "Musanze"},
+    )
+    force: bool = Field(
+        False,
+        description="Send SMS even if model probability is below the production threshold.",
+    )
+
+
+@router.post("/predict/alert")
+async def predict_and_alert(body: ManualAlertRequest):
+    """
+    Expert override: run prediction and dispatch SMS to all active recipients
+    in the specified district. Intended for meteorologists who have live data
+    and want to send a warning manually.
+
+    If force=true, sends even when model probability is below threshold.
+    """
+    settings = get_settings()
+    try:
+        model_wrapper = RFModel.load(settings.artifacts_path())
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="Model not loaded.")
+
+    ant3  = body.antecedent_3day_mm
+    ant10 = body.antecedent_10day_mm
+    ratio = body.rainfall_intensity_ratio
+    if ratio is None:
+        ratio = round(body.daily_mm / (body.antecedent_5day_mm + 1.0), 4)
+
+    feature_vals = {
+        "slope_angle": body.slope_angle, "aspect": body.aspect,
+        "twi": body.twi, "drainage_density": body.drainage_density,
+        "ndvi": body.ndvi, "soil_class": body.soil_class,
+        "landuse_class": body.landuse_class, "daily_mm": body.daily_mm,
+        "antecedent_3day_mm": ant3, "antecedent_5day_mm": body.antecedent_5day_mm,
+        "antecedent_10day_mm": ant10, "rainfall_intensity_ratio": ratio,
+    }
+    available = [c for c in model_wrapper.feature_cols if c in feature_vals]
+    feature_df = pd.DataFrame([{c: feature_vals[c] for c in available}])
+    feature_df["unit_id"] = 0
+
+    result_df = model_wrapper.predict(feature_df)
+    prob = float(result_df["risk_probability"].iloc[0])
+    alert_triggered = bool(result_df["alert_triggered"].iloc[0])
+    top_features = result_df["top_features"].iloc[0]
+
+    should_send = alert_triggered or body.force
+    if not should_send:
+        return {
+            "sent": False,
+            "reason": f"Model probability {prob*100:.1f}% is below threshold "
+                      f"{model_wrapper.production_threshold*100:.0f}%. "
+                      "Pass force=true to send anyway.",
+            "risk_probability_pct": round(prob * 100, 1),
+            "risk_level": _risk_level(prob),
+        }
+
+    db = get_db()
+    recipients = await db.recipients.find(
+        {"$or": [{"district": body.district}, {"districts": body.district}], "active": True}
+    ).to_list(length=100)
+
+    if not recipients:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No active recipients found for district '{body.district}'.",
+        )
+
+    sent_to = []
+    for recipient in recipients:
+        alert_id = await send_alert(
+            phone=recipient["phone"],
+            recipient_id=recipient["recipient_id"],
+            prediction_id="manual",
+            district=body.district,
+            sector="",
+            unit_id=0,
+            risk_probability=prob,
+            top_features=top_features,
+        )
+        sent_to.append({"name": recipient["name"], "phone": recipient["phone"], "alert_id": alert_id})
+
+    return {
+        "sent": True,
+        "district": body.district,
+        "sms_count": len(sent_to),
+        "recipients": sent_to,
+        "risk_probability_pct": round(prob * 100, 1),
+        "risk_level": _risk_level(prob),
+        "forced": body.force and not alert_triggered,
     }
