@@ -34,5 +34,5 @@ async def ensure_indexes():
     await db.predictions.create_index("date")
     await db.alert_records.create_index("prediction_id")
     await db.alert_records.create_index("sent_at")
-    await db.recipients.create_index("phone", unique=True)
+    await db.recipients.create_index("phone")
     await db.recipients.create_index("district")
