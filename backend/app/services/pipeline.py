@@ -124,10 +124,40 @@ class DataPipeline:
             rainfall_df = rainfall_df[rainfall_df["date"] == pd.Timestamp(rainfall_date)].reset_index(drop=True)
         else:
             # Slow path: download from UCSB and save to MongoDB for next time
-            await log("Fetching CHIRPS v2 rainfall from UCSB Climate Hazards Center…")
-            # Run in a thread — requests.get() is synchronous and would block the
-            # event loop, starving the SSE stream and all other requests
-            rainfall_df = await asyncio.to_thread(self.fetch_chirps, run_date)
+            from ml.pipeline.chirps import CHIRPSDownloader
+            _su = self._get_slope_units()
+            downloader = CHIRPSDownloader(self.settings.raw_path(), self.settings.processed_path())
+            yesterday = run_date - timedelta(days=1)
+
+            await log("Step 1/3 — Downloading CHIRPS v2 rainfall file from UCSB (~30-60s)…")
+            tif_path = await asyncio.to_thread(downloader.download_day, yesterday)
+            if tif_path:
+                await log(f"Step 2/3 — Rainfall file ready — extracting values for {len(_su)} slope units (~60s)…")
+            else:
+                await log("Step 2/3 — CHIRPS download failed or unavailable — using zero rainfall fallback…")
+
+            daily_df = await asyncio.to_thread(downloader.extract_per_unit_rainfall, yesterday, _su)
+            await log(f"Step 3/3 — Per-unit extraction complete — computing 3/5/10-day antecedent windows…")
+
+            daily_df["date"] = pd.to_datetime(daily_df["date"])
+            history_path = self.settings.processed_path() / "chirps_historical.parquet"
+            if history_path.exists():
+                history = pd.read_parquet(history_path)
+                cutoff = pd.Timestamp(yesterday) - pd.Timedelta(days=9)
+                recent = history[history["date"] >= cutoff][["unit_id", "date", "daily_mm"]]
+                combined = pd.concat([recent, daily_df], ignore_index=True)
+            else:
+                combined = daily_df
+            combined = combined.sort_values(["unit_id", "date"])
+            for window, col in [(3, "antecedent_3day_mm"), (5, "antecedent_5day_mm"), (10, "antecedent_10day_mm")]:
+                combined[col] = (
+                    combined.groupby("unit_id")["daily_mm"]
+                    .transform(lambda s, w=window: s.rolling(w, min_periods=1).sum())
+                )
+            combined["rainfall_intensity_ratio"] = (
+                combined["daily_mm"] / (combined["antecedent_5day_mm"] + 1.0)
+            ).round(4)
+            rainfall_df = combined[combined["date"] == pd.Timestamp(yesterday)].reset_index(drop=True)
             rain_upserts = [
                 _UpdateOne(
                     {"slope_unit_id": int(row["unit_id"]), "date": rainfall_date},

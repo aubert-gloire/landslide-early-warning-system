@@ -54,7 +54,9 @@ class CHIRPSDownloader:
 
         url = self._url(d)
         try:
-            resp = requests.get(url, timeout=120, stream=True)
+            # stream=False so timeout=(connect, read) covers the full body download.
+            # stream=True + resp.content only timeouts headers, body can hang forever.
+            resp = requests.get(url, timeout=(15, 180), stream=False)
             resp.raise_for_status()
             compressed = io.BytesIO(resp.content)
         except requests.RequestException as e:
