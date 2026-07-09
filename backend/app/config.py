@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     secret_key: str = "change_me_in_production"
-    alert_probability_threshold: float = 0.80
     cors_origin: str = "*"
 
     # Paths (relative to repo root, resolved at runtime)

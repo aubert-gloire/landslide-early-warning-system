@@ -91,8 +91,7 @@ class DataPipeline:
 
         await log("Loading Random Forest model…")
         model = self._get_model()
-        threshold = self.settings.alert_probability_threshold
-        await log(f"Model ready — alert threshold: {threshold}")
+        await log(f"Model ready — alert threshold: {model.production_threshold}")
 
         # Step 1 & 2 — rainfall: MongoDB cache first, CHIRPS download as fallback
         rainfall_date = (run_date - timedelta(days=1)).isoformat()
