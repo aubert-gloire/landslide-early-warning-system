@@ -37,7 +37,12 @@ async def lifespan(app: FastAPI):
     # Pre-load model in a thread at startup — joblib.load() is synchronous and
     # takes ~6s. Doing it here means the event loop is free and the first
     # pipeline/predict request is instant instead of blocking.
-    await asyncio.to_thread(pipeline._get_model)
+    # Wrapped in try/except so a missing artifact never prevents the server starting.
+    try:
+        await asyncio.to_thread(pipeline._get_model)
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).warning("Model preload failed — will load on first use: %s", exc)
     yield
     # Shutdown
     scheduler.shutdown(wait=False)

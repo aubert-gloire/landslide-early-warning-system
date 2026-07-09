@@ -3,7 +3,7 @@ services:
     name: landslide-ews-api
     env: python
     region: oregon
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -16,11 +16,9 @@ services:
       - key: AT_API_KEY
         sync: false
       - key: AT_SENDER_ID
-        value: LSEWS
+        sync: false
       - key: OPENTOPO_API_KEY
         sync: false
       - key: APP_ENV
         value: production
-      - key: ALERT_PROBABILITY_THRESHOLD
-        value: "0.80"
     healthCheckPath: /health
