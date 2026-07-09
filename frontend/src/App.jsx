@@ -11,10 +11,12 @@ import HelpChat from "./components/HelpChat";
 const TABS = ["Overview", "Risk Map", "Predict", "Alerts", "Districts"];
 
 export default function App() {
-  const [officer, setOfficer]   = useState(null);
+  const [officer, setOfficer]     = useState(null);
   const [activeTab, setActiveTab] = useState("Overview");
-  const [showLog, setShowLog]   = useState(false);
-  const [toast, setToast]       = useState(null);
+  const [showLog, setShowLog]     = useState(false);
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [dashboardKey, setDashboardKey] = useState(0);
+  const [toast, setToast]         = useState(null);
 
   // Restore session on reload
   useEffect(() => {
@@ -32,8 +34,15 @@ export default function App() {
   }
 
   function handlePipelineDone(result) {
+    setPipelineRunning(false);
+    setDashboardKey(k => k + 1); // force Dashboard to re-fetch fresh data
     setToast(`Run complete — ${result.units_processed} units · ${result.alerts_triggered} alerts`);
     setTimeout(() => setToast(null), 6000);
+  }
+
+  function startPipeline() {
+    setShowLog(true);
+    setPipelineRunning(true);
   }
 
   if (!officer) return <Login onLogin={handleLogin} />;
@@ -90,16 +99,16 @@ export default function App() {
               {" · "}{officer.district}
             </div>
             <button
-              onClick={() => setShowLog(true)}
-              disabled={showLog}
+              onClick={startPipeline}
+              disabled={pipelineRunning}
               style={{
                 padding: "7px 14px", borderRadius: "var(--radius)",
                 background: "var(--ember)", border: "1px solid var(--ember)",
                 color: "#fff", fontSize: 12, fontWeight: 600,
-                opacity: showLog ? 0.6 : 1,
+                opacity: pipelineRunning ? 0.6 : 1,
               }}
             >
-              {showLog ? "Running…" : "Run Pipeline"}
+              {pipelineRunning ? "Running…" : "Run Pipeline"}
             </button>
             <button
               onClick={handleLogout}
@@ -125,7 +134,7 @@ export default function App() {
         )}
 
         {activeTab === "Overview" && (
-          <Dashboard onRunPipeline={() => setShowLog(true)} />
+          <Dashboard key={dashboardKey} onRunPipeline={startPipeline} />
         )}
 
         {activeTab === "Risk Map" && (
