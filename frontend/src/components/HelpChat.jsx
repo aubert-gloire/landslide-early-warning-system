@@ -45,8 +45,6 @@ const QA = [
     triggers: ["feedback", "confirm", "denied", "reply", "officer feedback", "sms reply"],
     answer: `After an SMS alert is sent, field officers can reply by SMS:\n• Reply "Y" to confirm the alert (ground-truthed event)\n• Reply "N" to deny it (false alarm)\n\nFeedback is shown in the Alerts tab under "Officer Feedback" and tracked in the stats panel at the top (Confirmed / Denied / Awaiting). The confirmation rate gives a real-world accuracy measure over time.`,
   },
-];
-
   {
     triggers: ["slope unit", "what is a slope unit", "unit", "396", "terrain unit", "hydrological"],
     answer: `A slope unit is a hydrological terrain subdivision — an area of land defined by ridge lines and valley lines where water drains in a consistent direction.\n\nThis system monitors 396 slope units across Northern Province Rwanda. Each unit is a polygon derived from the Copernicus 30m DEM using watershed analysis.\n\nWhy slope units instead of pixels? They are more physically meaningful for landslide modelling — a single slope unit represents one coherent hillside that behaves uniformly under rainfall. This is the standard approach in the scientific literature (Kuradusenge et al., 2020).`,
