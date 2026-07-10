@@ -1,6 +1,11 @@
 """
-Simple officer authentication for the Threshold dashboard.
-POST /api/auth/login  — returns a session token valid for 24h.
+Admin authentication — credentials stored in MongoDB `users` collection.
+Passwords are bcrypt-hashed. Plain-text is never persisted.
+
+On first startup, if the `users` collection is empty and OFFICER_PASSWORD is set
+in the environment, an admin account is seeded automatically.
+After seeding, the password lives in the database and OFFICER_PASSWORD is no longer
+needed for auth (though it can stay in env for the seed to be idempotent).
 """
 
 from __future__ import annotations
@@ -8,39 +13,54 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from passlib.context import CryptContext
 from pydantic import BaseModel
+
+from ..config import Settings, get_settings
+from ..database import get_db
 
 router = APIRouter()
 
+_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _tokens: dict[str, dict] = {}
 
-OFFICERS = [
-    {"username": "gakenke", "name": "Field Officer", "district": "Gakenke"},
-    {"username": "burera",  "name": "Field Officer", "district": "Burera"},
-    {"username": "musanze", "name": "Field Officer", "district": "Musanze"},
-    {"username": "gicumbi", "name": "Field Officer", "district": "Gicumbi"},
-    {"username": "admin",   "name": "System Admin",  "district": "All Districts"},
-    {"username": "guest",   "name": "Guest",         "district": "All Districts"},
-]
+
+async def seed_admin_if_empty(officer_password: str) -> None:
+    """Called at startup. Seeds one admin user if the users collection is empty."""
+    if not officer_password:
+        return
+    db = get_db()
+    if await db.users.count_documents({}) == 0:
+        await db.users.insert_one({
+            "username": "admin",
+            "password_hash": _pwd.hash(officer_password),
+            "name": "Admin",
+            "role": "admin",
+            "created_at": datetime.utcnow().isoformat(),
+        })
 
 
 class LoginRequest(BaseModel):
     username: str
+    password: str
 
 
 @router.post("/auth/login")
-async def login(body: LoginRequest):
-    officer = next((o for o in OFFICERS if o["username"] == body.username.strip().lower()), None)
-    if not officer:
-        raise HTTPException(status_code=401, detail="Unknown username.")
+async def login(body: LoginRequest, settings: Settings = Depends(get_settings)):
+    db = get_db()
+    user = await db.users.find_one({"username": body.username.strip().lower()})
+
+    if not user or not _pwd.verify(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
 
     token = str(uuid.uuid4())
     _tokens[token] = {
-        **officer,
+        "name": user["name"],
+        "district": "All Districts",
         "expires": (datetime.utcnow() + timedelta(hours=24)).isoformat(),
     }
-    return {"token": token, "name": officer["name"], "district": officer["district"]}
+    return {"token": token, "name": user["name"], "district": "All Districts"}
 
 
 @router.get("/auth/verify")

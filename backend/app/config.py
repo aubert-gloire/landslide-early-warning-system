@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     secret_key: str = "change_me_in_production"
     cors_origin: str = "*"
+    officer_password: str = ""
 
     # Paths (relative to repo root, resolved at runtime)
     data_raw_dir: str = "data/raw"
