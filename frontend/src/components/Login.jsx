@@ -165,10 +165,11 @@ function SetupScreen({ onDone }) {
 // ── Login screen ──────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
+  const [username, setUsername]   = useState("");
+  const [password, setPassword]   = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
+  const [error, setError]         = useState("");
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -188,6 +189,22 @@ function LoginScreen({ onLogin }) {
       setError("Cannot reach server. Check your connection.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGuest() {
+    setGuestLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/guest`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setError(data.detail || "Could not connect."); return; }
+      sessionStorage.setItem("officer", JSON.stringify(data));
+      onLogin(data);
+    } catch {
+      setError("Cannot reach server. Check your connection.");
+    } finally {
+      setGuestLoading(false);
     }
   }
 
@@ -227,6 +244,27 @@ function LoginScreen({ onLogin }) {
           {loading ? "Signing in…" : "Sign In"}
         </SubmitButton>
       </form>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0 16px" }}>
+        <div style={{ flex: 1, height: 1, background: "var(--line-strong)" }} />
+        <span style={{ fontSize: 11, color: "var(--chalk-dim)", fontFamily: "'Space Mono', monospace" }}>or</span>
+        <div style={{ flex: 1, height: 1, background: "var(--line-strong)" }} />
+      </div>
+
+      <button
+        onClick={handleGuest}
+        disabled={guestLoading || loading}
+        style={{
+          width: "100%", padding: "12px 0", borderRadius: 8,
+          background: "transparent", border: "1px solid var(--line-strong)",
+          color: "var(--chalk-dim)", fontFamily: "inherit", fontSize: 14,
+          cursor: "pointer", letterSpacing: "0.02em",
+          opacity: guestLoading || loading ? 0.5 : 1,
+          transition: "opacity .15s",
+        }}
+      >
+        {guestLoading ? "Entering…" : "Continue as Guest →"}
+      </button>
     </Card>
   );
 }

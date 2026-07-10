@@ -78,6 +78,17 @@ async def login(body: LoginRequest):
     return {"token": token, "name": user["name"], "district": "All Districts"}
 
 
+@router.post("/auth/guest")
+async def guest_login():
+    token = str(uuid.uuid4())
+    _tokens[token] = {
+        "name": "Guest",
+        "district": "All Districts",
+        "expires": (datetime.utcnow() + timedelta(hours=24)).isoformat(),
+    }
+    return {"token": token, "name": "Guest", "district": "All Districts"}
+
+
 @router.get("/auth/verify")
 async def verify(token: str):
     entry = _tokens.get(token)
