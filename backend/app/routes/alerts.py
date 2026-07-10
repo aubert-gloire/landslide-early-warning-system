@@ -61,15 +61,16 @@ async def get_alert_stats():
     }
 
 
-@router.post("/sms/callback")
-async def sms_inbound_webhook(request: Request):
+@router.post("/sms/telerivet-callback")
+async def telerivet_inbound_webhook(request: Request):
     """
-    Africa's Talking inbound SMS callback.
-    AT posts form data with: from, to, text, date, id, linkId
+    Telerivet inbound SMS webhook.
+    Telerivet posts JSON with: from_number, content, id, ...
+    Configure in Telerivet dashboard → Project → Services → incoming message URL.
     """
-    form = await request.form()
-    phone = form.get("from", "")
-    text = form.get("text", "")
+    data = await request.json()
+    phone = data.get("from_number", "")
+    text = data.get("content", "")
     if phone and text:
         await handle_inbound(phone, text)
     return {"status": "ok"}

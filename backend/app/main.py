@@ -6,7 +6,7 @@ Endpoints:
   GET  /api/alerts          — alert history
   GET  /api/districts       — per-district summary stats
   POST /api/trigger         — manually trigger a prediction run (demo + daily cron)
-  POST /api/sms/callback    — Africa's Talking inbound SMS webhook
+  POST /api/sms/telerivet-callback — Telerivet inbound SMS webhook (officer YES/NO replies)
   GET  /health              — uptime check (keeps Render awake via UptimeRobot)
 """
 

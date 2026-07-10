@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "landslide_ews"
 
-    # SMS providers — comma-separated list: "africastalking", "telerivet", or "africastalking,telerivet"
-    sms_provider: str = "africastalking,telerivet"
+    # SMS provider: "telerivet" (default) or "africastalking" or "africastalking,telerivet"
+    sms_provider: str = "telerivet"
 
     # Africa's Talking
     at_username: str = "sandbox"
