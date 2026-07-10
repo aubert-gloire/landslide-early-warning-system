@@ -11,16 +11,23 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
+import bcrypt as _bcrypt
 from fastapi import APIRouter, HTTPException
-from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from ..database import get_db
 
 router = APIRouter()
 
-_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _tokens: dict[str, dict] = {}
+
+
+def _hash(password: str) -> str:
+    return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
+
+
+def _verify(password: str, hashed: str) -> bool:
+    return _bcrypt.checkpw(password.encode(), hashed.encode())
 
 
 # ── First-time setup ──────────────────────────────────────────────────────────
@@ -46,7 +53,7 @@ async def setup(body: SetupRequest):
 
     await db.users.insert_one({
         "username": "admin",
-        "password_hash": _pwd.hash(body.password),
+        "password_hash": _hash(body.password),
         "name": "Admin",
         "role": "admin",
         "created_at": datetime.utcnow().isoformat(),
@@ -66,7 +73,7 @@ async def login(body: LoginRequest):
     db = get_db()
     user = await db.users.find_one({"username": body.username.strip().lower()})
 
-    if not user or not _pwd.verify(body.password, user["password_hash"]):
+    if not user or not _verify(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid username or password.")
 
     token = str(uuid.uuid4())
