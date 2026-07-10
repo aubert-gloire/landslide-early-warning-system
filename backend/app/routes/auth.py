@@ -2,10 +2,8 @@
 Admin authentication — credentials stored in MongoDB `users` collection.
 Passwords are bcrypt-hashed. Plain-text is never persisted.
 
-On first startup, if the `users` collection is empty and OFFICER_PASSWORD is set
-in the environment, an admin account is seeded automatically.
-After seeding, the password lives in the database and OFFICER_PASSWORD is no longer
-needed for auth (though it can stay in env for the seed to be idempotent).
+First-time setup: if no users exist, GET /api/auth/setup-required returns true,
+and POST /api/auth/setup creates the first admin. After that, setup is locked.
 """
 
 from __future__ import annotations
@@ -13,11 +11,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-from ..config import Settings, get_settings
 from ..database import get_db
 
 router = APIRouter()
@@ -26,20 +23,38 @@ _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _tokens: dict[str, dict] = {}
 
 
-async def seed_admin_if_empty(officer_password: str) -> None:
-    """Called at startup. Seeds one admin user if the users collection is empty."""
-    if not officer_password:
-        return
-    db = get_db()
-    if await db.users.count_documents({}) == 0:
-        await db.users.insert_one({
-            "username": "admin",
-            "password_hash": _pwd.hash(officer_password),
-            "name": "Admin",
-            "role": "admin",
-            "created_at": datetime.utcnow().isoformat(),
-        })
+# ── First-time setup ──────────────────────────────────────────────────────────
 
+@router.get("/auth/setup-required")
+async def setup_required():
+    db = get_db()
+    count = await db.users.count_documents({})
+    return {"required": count == 0}
+
+
+class SetupRequest(BaseModel):
+    password: str
+
+
+@router.post("/auth/setup")
+async def setup(body: SetupRequest):
+    db = get_db()
+    if await db.users.count_documents({}) > 0:
+        raise HTTPException(status_code=403, detail="Admin account already exists.")
+    if len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+
+    await db.users.insert_one({
+        "username": "admin",
+        "password_hash": _pwd.hash(body.password),
+        "name": "Admin",
+        "role": "admin",
+        "created_at": datetime.utcnow().isoformat(),
+    })
+    return {"ok": True}
+
+
+# ── Login / verify ────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
     username: str
@@ -47,7 +62,7 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/auth/login")
-async def login(body: LoginRequest, settings: Settings = Depends(get_settings)):
+async def login(body: LoginRequest):
     db = get_db()
     user = await db.users.find_one({"username": body.username.strip().lower()})
 

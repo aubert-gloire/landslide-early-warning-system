@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .database import close_client, ensure_indexes
 from .routes.alerts import router as alerts_router
-from .routes.auth import router as auth_router, seed_admin_if_empty
+from .routes.auth import router as auth_router
 from .routes.districts import router as districts_router
 from .routes.predict import router as predict_router
 from .routes.risk_map import router as risk_map_router
@@ -32,7 +32,6 @@ from .services.scheduler import scheduler, setup_scheduler
 async def lifespan(app: FastAPI):
     # Startup
     await ensure_indexes()
-    await seed_admin_if_empty(settings.officer_password)
     pipeline = DataPipeline()
     setup_scheduler(pipeline)
     scheduler.start()
