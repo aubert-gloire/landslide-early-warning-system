@@ -19,7 +19,7 @@ import pandas as pd
 from ..config import get_settings
 from ..database import get_db
 from ..ml.xgb_model import XGBModel
-from .sms import send_alert
+from .sms import get_alert_level, send_alert
 
 logger = logging.getLogger(__name__)
 
@@ -296,12 +296,12 @@ class DataPipeline:
         # Merge district + sector info from slope units
         _su = self._get_slope_units()
         _cols = ["unit_id", "district"]
-        if "sector" in _su.columns: _cols.append("sector")
-        if "centroid_lat" in _su.columns: _cols += ["centroid_lat", "centroid_lon"]
+        if "sector" in _su.columns:
+            _cols.append("sector")
+        if "centroid_lat" in _su.columns:
+            _cols += ["centroid_lat", "centroid_lon"]
         slope_units = _su[_cols]
         predictions_df = predictions_df.merge(slope_units, on="unit_id", how="left")
-
-        from .sms import get_alert_level
 
         # Step 4 — write all predictions
         await log("Saving predictions to MongoDB…")
