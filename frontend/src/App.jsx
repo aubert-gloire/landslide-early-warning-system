@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import Dashboard from "./components/Dashboard";
 import RiskMap from "./components/RiskMap";
 import AlertTable from "./components/AlertTable";
+import RunHistory from "./components/RunHistory";
 import DistrictCards from "./components/DistrictCards";
 import PipelineLog from "./components/PipelineLog";
 import PredictPanel from "./components/PredictPanel";
 import Login from "./components/Login";
 import HelpChat from "./components/HelpChat";
 
-const TABS = ["Overview", "Risk Map", "Predict", "Alerts", "Districts"];
+const TABS = ["Overview", "Risk Map", "Predict", "Alerts", "History", "Districts"];
 
 export default function App() {
   const [officer, setOfficer]     = useState(null);
@@ -179,6 +180,19 @@ export default function App() {
               SMS dispatch log
             </p>
             <AlertTable />
+          </>
+        )}
+
+        {activeTab === "History" && (
+          <>
+            <p style={{
+              fontFamily: "'Space Mono', monospace", fontSize: 11,
+              color: "var(--chalk-dim)", letterSpacing: "0.07em",
+              textTransform: "uppercase", marginBottom: 20,
+            }}>
+              Daily prediction run history
+            </p>
+            <RunHistory />
           </>
         )}
 

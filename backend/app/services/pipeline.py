@@ -386,5 +386,26 @@ class DataPipeline:
         }
         await log(f"Pipeline complete — {alert_count} SMS sent, {len(predictions_df)} units processed")
         logger.info("=== Daily pipeline complete: %s ===", summary)
+
+        # Save run record for history tab
+        district_stats = {}
+        for district in predictions_df["district"].unique():
+            d_rows = predictions_df[predictions_df["district"] == district]
+            district_stats[str(district)] = {
+                "max_risk": round(float(d_rows["risk_probability"].max()), 4),
+                "alert_triggered": bool(d_rows["alert_triggered"].any()),
+            }
+        await db.pipeline_runs.insert_one({
+            "run_date":            run_date.isoformat(),
+            "run_at":              datetime.utcnow().isoformat(),
+            "units_processed":     summary["units_processed"],
+            "max_risk_probability": round(float(predictions_df["risk_probability"].max()), 4),
+            "alerts_triggered":    summary["alerts_triggered"],
+            "sms_sent":            summary["sms_sent"],
+            "seismic_detected":    summary["seismic_detected"],
+            "threshold_used":      summary["threshold_used"],
+            "districts":           district_stats,
+        })
+
         self.running = False
         return summary
