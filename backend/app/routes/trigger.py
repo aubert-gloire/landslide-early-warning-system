@@ -79,14 +79,19 @@ async def trigger_prediction(
                 ].to_dict(orient="records"),
             }
 
-    try:
-        summary = await pipeline.run_daily()
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Pipeline error: {e}")
+    if pipeline.running:
+        return {"status": "already_running", "message": "Pipeline already in progress — skipping duplicate trigger."}
 
-    return summary
+    async def _run_bg():
+        try:
+            await pipeline.run_daily()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error("Background pipeline error: %s", e)
+            pipeline.running = False
+
+    asyncio.create_task(_run_bg())
+    return {"status": "started", "message": "Pipeline started in background."}
 
 
 @router.get("/trigger/stream")

@@ -96,6 +96,7 @@ class DataPipeline:
         self.settings = get_settings()
         self._slope_units: gpd.GeoDataFrame | None = None
         self._xgb_model: XGBModel | None = None
+        self.running: bool = False  # prevents concurrent runs from scheduler + trigger
 
     def _get_slope_units(self) -> gpd.GeoDataFrame:
         if self._slope_units is None:
@@ -142,6 +143,10 @@ class DataPipeline:
 
         log_fn: optional async callable(str) — receives progress messages for live streaming.
         """
+        if self.running:
+            logger.warning("run_daily called while already running — skipping duplicate.")
+            return {"skipped": True, "reason": "already_running"}
+        self.running = True
         async def log(msg):
             ts = datetime.now().strftime("%H:%M:%S")
             entry = f"[{ts}] {msg}"
@@ -381,4 +386,5 @@ class DataPipeline:
         }
         await log(f"Pipeline complete — {alert_count} SMS sent, {len(predictions_df)} units processed")
         logger.info("=== Daily pipeline complete: %s ===", summary)
+        self.running = False
         return summary
