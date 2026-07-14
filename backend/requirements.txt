@@ -14,7 +14,7 @@ python-multipart>=0.0.9
 # ML / data — versions pinned to match training environment
 # sklearn 1.9.0 renamed SimpleImputer._fill_dtype → _fit_dtype, breaking joblib deserialization
 scikit-learn==1.7.2
-xgboost>=2.0.0,<3.0.0
+xgboost>=3.0.0,<4.0.0
 imbalanced-learn>=0.12.0,<0.15.0
 pandas>=2.1.0
 numpy>=1.26.0
