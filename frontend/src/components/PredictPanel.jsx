@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useApi } from "../hooks/useApi";
+import RadialGauge from "./RadialGauge";
+import ThresholdSlider from "./ThresholdSlider";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -15,6 +18,13 @@ const THRESHOLD_COLORS = {
   no_threshold: "var(--chalk-dim)",
   no_value:     "var(--chalk-dim)",
 };
+
+const SLIDER_SPECS = [
+  { key: "daily_mm",            label: "Daily Rainfall",       warn: 25,   critical: 50,  unit: "mm" },
+  { key: "antecedent_5day_mm",  label: "5-day Antecedent",     warn: 80,   critical: 150, unit: "mm" },
+  { key: "twi",                 label: "Topographic Wetness",  warn: 8,    critical: 12,  unit: "" },
+  { key: "ndvi",                label: "Vegetation (NDVI)",    warn: 0.35, critical: 0.20, unit: "", invert: true, max: 1 },
+];
 
 const FIELD_META = {
   slope_angle:             { label: "Slope Angle (°)",           placeholder: "e.g. 38.5",  min: 0,    max: 90,   step: 0.5,  required: true,  hint: "0–90°. Critical risk above 35°." },
@@ -43,18 +53,18 @@ const SCENARIO_PRESETS = [
     values: { slope_angle: 15, daily_mm: 5, antecedent_3day_mm: 8, antecedent_5day_mm: 12, antecedent_10day_mm: 18, twi: 4.1, ndvi: 0.72 },
   },
   {
-    label: "Invalid — negative rainfall",
+    label: "Edge case — negative rainfall (should be rejected)",
     values: { slope_angle: 30, daily_mm: -20, antecedent_3day_mm: 40, antecedent_5day_mm: 80 },
   },
   {
-    label: "Invalid — slope > 90°",
+    label: "Edge case — slope > 90° (should be rejected)",
     values: { slope_angle: 110, daily_mm: 40, antecedent_3day_mm: 55, antecedent_5day_mm: 100 },
   },
 ];
 
 const styles = {
   root: { display: "grid", gridTemplateColumns: "clamp(280px, 30%, 360px) 1fr", gap: 24, alignItems: "start" },
-  panel: { background: "var(--panel)", border: "1px solid var(--line-strong)", borderRadius: 10, padding: 20 },
+  panel: { background: "var(--panel)", border: "1px solid var(--line-strong)", borderRadius: 10, padding: 20, boxShadow: "var(--shadow)" },
   sectionTitle: { fontSize: 12, fontWeight: 600, color: "var(--chalk-dim)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 },
   fieldRow: { marginBottom: 14 },
   label: { display: "block", fontSize: 12, color: "var(--chalk-dim)", marginBottom: 4, fontWeight: 500 },
@@ -62,6 +72,11 @@ const styles = {
     width: "100%", boxSizing: "border-box",
     background: "var(--panel-2)", border: "1px solid var(--line-strong)", color: "var(--chalk)",
     padding: "7px 10px", borderRadius: 6, fontSize: 13,
+  },
+  select: {
+    width: "100%", boxSizing: "border-box",
+    background: "var(--panel-2)", border: "1px solid var(--line-strong)", color: "var(--chalk)",
+    padding: "8px 10px", borderRadius: 6, fontSize: 13, marginBottom: 10,
   },
   hint: { fontSize: 11, color: "var(--chalk-dim)", marginTop: 3 },
   errorInput: { borderColor: "var(--ember)" },
@@ -77,7 +92,6 @@ const styles = {
     marginBottom: 6,
   },
   invalidPreset: { borderColor: "var(--ember)", color: "var(--ember-text)" },
-  divider: { borderColor: "var(--line)", margin: "16px 0" },
   narrative: { lineHeight: 1.7, fontSize: 14, color: "var(--chalk)", marginBottom: 16 },
   featureRow: {
     display: "flex", alignItems: "flex-start", gap: 10,
@@ -91,10 +105,13 @@ const styles = {
   errorBox: { background: "rgba(194,75,58,0.12)", border: "1px solid rgba(194,75,58,0.35)", borderRadius: 8, padding: 16 },
   errorTitle: { color: "var(--ember-text)", fontWeight: 600, fontSize: 13, marginBottom: 8 },
   errorItem: { color: "var(--ember-text)", fontSize: 13, marginBottom: 4 },
-  metricRow: { display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" },
-  metric: { flex: 1, minWidth: 120, background: "var(--panel-2)", borderRadius: 8, padding: "12px 16px" },
-  metricVal: { fontSize: 24, fontWeight: 700 },
-  metricLabel: { fontSize: 11, color: "var(--chalk-dim)", marginTop: 2 },
+  modeTabs: { display: "flex", gap: 6, marginBottom: 20 },
+  modeTab: {
+    padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+    background: "var(--panel-2)", border: "1px solid var(--line-strong)",
+    color: "var(--chalk-dim)", cursor: "pointer",
+  },
+  modeTabActive: { background: "var(--storm)", color: "#fff", borderColor: "var(--storm)" },
 };
 
 function RiskBadge({ level }) {
@@ -114,7 +131,279 @@ function defaultForm() {
   return Object.fromEntries(Object.keys(FIELD_META).map((k) => [k, ""]));
 }
 
-export default function PredictPanel() {
+function ResultPanel({ result, onSendAlert, alertDistrict, setAlertDistrict, alertLoading, alertResult }) {
+  const riskColors = RISK_COLORS[result.risk_level] || RISK_COLORS.low;
+  const sliderValues = result.features || result.input_summary || {};
+
+  return (
+    <div>
+      {/* Risk summary */}
+      <div style={{ ...styles.panel, borderColor: riskColors.border, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 16, flexWrap: "wrap" }}>
+          <RadialGauge value={result.risk_probability_pct} level={result.risk_level} label="Risk probability" size={88} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <RiskBadge level={result.risk_level} />
+            {result.alert_triggered && (
+              <span style={{ color: "var(--ember)", fontSize: 12, fontWeight: 600 }}>
+                Alert threshold exceeded
+              </span>
+            )}
+            {(result.district || result.data_date) && (
+              <span style={{ color: "var(--chalk-dim)", fontSize: 12 }}>
+                {result.district}{result.sector ? ` · ${result.sector}` : ""}{result.data_date ? ` · data as of ${result.data_date}` : ""}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ ...styles.sectionTitle, marginTop: 4 }}>Why</div>
+        <div style={styles.narrative}>{result.risk_narrative}</div>
+
+        {SLIDER_SPECS.filter((s) => sliderValues[s.key] !== undefined && sliderValues[s.key] !== null).map((s) => (
+          <ThresholdSlider
+            key={s.key}
+            label={s.label}
+            value={sliderValues[s.key]}
+            warn={s.warn}
+            critical={s.critical}
+            unit={s.unit}
+            max={s.max}
+            invert={s.invert}
+          />
+        ))}
+      </div>
+
+      {/* SMS dispatch */}
+      <div style={{ ...styles.panel, marginBottom: 16, borderColor: result.alert_triggered ? "var(--ember)" : "var(--line-strong)" }}>
+        <div style={styles.sectionTitle}>Send SMS Alert</div>
+        <p style={{ fontSize: 12, color: "var(--chalk-dim)", marginBottom: 12, marginTop: 0 }}>
+          Sends to all registered officers in the district.
+          {!result.alert_triggered && " Below alert threshold — use Force Send to override."}
+        </p>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <input
+            type="text"
+            placeholder="District (e.g. Musanze)"
+            value={alertDistrict}
+            onChange={(e) => setAlertDistrict(e.target.value)}
+            style={{ ...styles.input, flex: 1, minWidth: 160 }}
+          />
+          <button
+            onClick={() => onSendAlert(false)}
+            disabled={alertLoading || !alertDistrict.trim() || !result.alert_triggered}
+            style={{
+              ...styles.btn, width: "auto", padding: "8px 16px", marginTop: 0,
+              background: result.alert_triggered ? "var(--ember)" : "var(--panel-2)",
+              color: "#fff",
+              cursor: (alertLoading || !alertDistrict.trim() || !result.alert_triggered) ? "not-allowed" : "pointer",
+              opacity: (!alertDistrict.trim() || !result.alert_triggered) ? 0.5 : 1,
+            }}
+          >
+            {alertLoading ? "Sending…" : "Send SMS Alert"}
+          </button>
+          <button
+            onClick={() => onSendAlert(true)}
+            disabled={alertLoading || !alertDistrict.trim()}
+            style={{
+              ...styles.btn, width: "auto", padding: "8px 16px", marginTop: 0,
+              background: "rgba(201,154,62,0.15)",
+              border: "1px solid rgba(201,154,62,0.4)",
+              color: "var(--amber-text)",
+              cursor: (alertLoading || !alertDistrict.trim()) ? "not-allowed" : "pointer",
+              opacity: !alertDistrict.trim() ? 0.5 : 1,
+              fontSize: 12,
+            }}
+          >
+            Force Send
+          </button>
+        </div>
+
+        {alertResult && !alertResult.error && alertResult.sent && (
+          <div style={{ marginTop: 12, background: "rgba(116,147,106,0.12)", border: "1px solid rgba(116,147,106,0.35)", borderRadius: 6, padding: 12 }}>
+            <div style={{ color: "var(--moss-text)", fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+              Sent to {alertResult.sms_count} recipient{alertResult.sms_count !== 1 ? "s" : ""} in {alertResult.district}
+              {alertResult.forced && <span style={{ color: "var(--amber-text)" }}> (manual override)</span>}
+            </div>
+            {alertResult.recipients.map((r) => (
+              <div key={r.alert_id} style={{ fontSize: 12, color: "var(--moss-text)" }}>
+                → {r.name} ({r.phone})
+              </div>
+            ))}
+          </div>
+        )}
+        {alertResult && !alertResult.error && !alertResult.sent && (
+          <div style={{ marginTop: 12, background: "var(--panel-2)", borderRadius: 6, padding: 10, fontSize: 12, color: "var(--chalk-dim)" }}>
+            {alertResult.reason}
+          </div>
+        )}
+        {alertResult && alertResult.error && (
+          <div style={{ marginTop: 12, background: "rgba(194,75,58,0.12)", borderRadius: 6, padding: 10, fontSize: 12, color: "var(--ember-text)" }}>
+            {alertResult.error}
+          </div>
+        )}
+      </div>
+
+      {/* Top features */}
+      <div style={styles.panel}>
+        <div style={styles.sectionTitle}>What's driving this</div>
+        {(() => {
+          const maxImp = Math.max(...result.top_features.map((f) => f.importance), 0.001);
+          return result.top_features.map((f, i) => (
+            <div key={f.feature} style={styles.featureRow}>
+              <div style={styles.rank}>{i + 1}</div>
+              <div style={{ flex: 1 }}>
+                <div style={styles.featureName}>{f.label}</div>
+                <div style={styles.featureValue}>
+                  Value: <strong>{f.value ?? "N/A"}</strong>
+                </div>
+                {f.threshold_context && (
+                  <div style={{
+                    ...styles.featureCtx,
+                    color: THRESHOLD_COLORS[f.threshold_status] || "var(--chalk-dim)",
+                  }}>
+                    {f.threshold_context}
+                  </div>
+                )}
+                <div style={{ ...styles.impBar, width: `${Math.round((f.importance / maxImp) * 100)}%` }} />
+              </div>
+            </div>
+          ));
+        })()}
+      </div>
+    </div>
+  );
+}
+
+function OfficerMode() {
+  const { data: mapData, loading: mapLoading } = useApi("/api/risk-map");
+  const [district, setDistrict] = useState("");
+  const [unitId, setUnitId] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [alertDistrict, setAlertDistrict] = useState("");
+  const [alertLoading, setAlertLoading] = useState(false);
+  const [alertResult, setAlertResult] = useState(null);
+
+  const units = mapData?.features || [];
+  const districts = useMemo(
+    () => [...new Set(units.map((f) => f.properties.district))].filter(Boolean).sort(),
+    [units]
+  );
+  const unitsInDistrict = useMemo(
+    () => units
+      .filter((f) => !district || f.properties.district === district)
+      .sort((a, b) => b.properties.risk_probability - a.properties.risk_probability),
+    [units, district]
+  );
+
+  async function selectUnit(id) {
+    setUnitId(id);
+    setResult(null);
+    setError(null);
+    setAlertResult(null);
+    if (!id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/predict/unit/${id}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || `Error ${res.status}`);
+        return;
+      }
+      setResult(data);
+      setAlertDistrict(data.district || "");
+    } catch (err) {
+      setError(`Network error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSendAlert(force = false) {
+    if (!result) return;
+    setAlertLoading(true);
+    setAlertResult(null);
+    const body = { district: alertDistrict, force, ...result.features };
+    try {
+      const res = await fetch(`${API_BASE}/api/predict/alert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      setAlertResult(res.ok ? data : { error: data.detail || `Error ${res.status}` });
+    } catch (err) {
+      setAlertResult({ error: `Network error: ${err.message}` });
+    } finally {
+      setAlertLoading(false);
+    }
+  }
+
+  return (
+    <div style={styles.root}>
+      <div>
+        <div style={styles.panel}>
+          <div style={styles.sectionTitle}>Select Location</div>
+          <label style={styles.label}>District</label>
+          <select style={styles.select} value={district} onChange={(e) => { setDistrict(e.target.value); selectUnit(""); }}>
+            <option value="">All districts</option>
+            {districts.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+
+          <label style={styles.label}>Slope unit</label>
+          <select
+            style={styles.select}
+            value={unitId}
+            onChange={(e) => selectUnit(e.target.value)}
+            disabled={mapLoading || !unitsInDistrict.length}
+          >
+            <option value="">
+              {mapLoading ? "Loading…" : unitsInDistrict.length ? "Choose a unit" : "No assessment run yet"}
+            </option>
+            {unitsInDistrict.map((f) => (
+              <option key={f.properties.unit_id} value={f.properties.unit_id}>
+                Unit {f.properties.unit_id} — {f.properties.sector || f.properties.district} ({Math.round(f.properties.risk_probability * 100)}%)
+              </option>
+            ))}
+          </select>
+          <div style={styles.hint}>
+            Values shown are pulled directly from the most recent pipeline run — nothing to type in.
+          </div>
+        </div>
+      </div>
+
+      <div>
+        {!result && !error && !loading && (
+          <div style={{ ...styles.panel, color: "var(--chalk-dim)", fontSize: 13, lineHeight: 1.8 }}>
+            Pick a district and slope unit to see its current risk assessment.
+          </div>
+        )}
+        {loading && (
+          <div style={{ ...styles.panel, color: "var(--chalk-dim)", fontSize: 13 }}>Loading assessment…</div>
+        )}
+        {error && (
+          <div style={styles.errorBox}>
+            <div style={styles.errorTitle}>Couldn't load this unit</div>
+            <div style={{ color: "var(--ember-text)", fontSize: 13 }}>{error}</div>
+          </div>
+        )}
+        {result && (
+          <ResultPanel
+            result={result}
+            onSendAlert={handleSendAlert}
+            alertDistrict={alertDistrict}
+            setAlertDistrict={setAlertDistrict}
+            alertLoading={alertLoading}
+            alertResult={alertResult}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdvancedMode() {
   const [form, setForm] = useState(defaultForm());
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -131,13 +420,21 @@ export default function PredictPanel() {
 
   function applyPreset(preset) {
     const next = defaultForm();
-    for (const [k, v] of Object.entries(preset.values)) {
-      next[k] = String(v);
-    }
+    for (const [k, v] of Object.entries(preset.values)) next[k] = String(v);
     setForm(next);
     setResult(null);
     setValidationErrors(null);
     setFieldErrors({});
+  }
+
+  function parsedFeatures() {
+    const body = {};
+    for (const [k, meta] of Object.entries(FIELD_META)) {
+      const raw = form[k].trim();
+      if (raw === "") continue;
+      body[k] = k === "soil_class" ? parseInt(raw, 10) : parseFloat(raw);
+    }
+    return body;
   }
 
   async function handleSubmit(e) {
@@ -151,9 +448,7 @@ export default function PredictPanel() {
     for (const [k, meta] of Object.entries(FIELD_META)) {
       const raw = form[k].trim();
       if (raw === "") {
-        if (meta.required) {
-          setFieldErrors((err) => ({ ...err, [k]: "Required" }));
-        }
+        if (meta.required) setFieldErrors((err) => ({ ...err, [k]: "Required" }));
         continue;
       }
       const num = k === "soil_class" ? parseInt(raw, 10) : parseFloat(raw);
@@ -187,9 +482,7 @@ export default function PredictPanel() {
         setValidationErrors([{ field: "server", message: errData.detail || `Server error ${res.status}` }]);
         return;
       }
-
-      const data = await res.json();
-      setResult(data);
+      setResult(await res.json());
     } catch (err) {
       setValidationErrors([{ field: "network", message: `Network error: ${err.message}` }]);
     } finally {
@@ -200,12 +493,7 @@ export default function PredictPanel() {
   async function handleSendAlert(force = false) {
     setAlertLoading(true);
     setAlertResult(null);
-    const body = { district: alertDistrict, force };
-    for (const [k] of Object.entries(FIELD_META)) {
-      const raw = form[k].trim();
-      if (raw === "") continue;
-      body[k] = k === "soil_class" ? parseInt(raw, 10) : parseFloat(raw);
-    }
+    const body = { district: alertDistrict, force, ...parsedFeatures() };
     try {
       const res = await fetch(`${API_BASE}/api/predict/alert`, {
         method: "POST",
@@ -213,11 +501,7 @@ export default function PredictPanel() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setAlertResult({ error: data.detail || `Error ${res.status}` });
-      } else {
-        setAlertResult(data);
-      }
+      setAlertResult(res.ok ? data : { error: data.detail || `Error ${res.status}` });
     } catch (err) {
       setAlertResult({ error: `Network error: ${err.message}` });
     } finally {
@@ -225,30 +509,27 @@ export default function PredictPanel() {
     }
   }
 
-  const riskColors = result ? RISK_COLORS[result.risk_level] || RISK_COLORS.low : null;
-
   return (
     <div style={styles.root}>
-      {/* Left: input form */}
       <div>
         <div style={styles.panel}>
           <div style={styles.sectionTitle}>Scenario Presets</div>
           {SCENARIO_PRESETS.map((p) => {
-            const isInvalid = p.label.startsWith("Invalid");
+            const isEdgeCase = p.label.startsWith("Edge case");
             return (
               <button
                 key={p.label}
-                style={{ ...styles.presetBtn, ...(isInvalid ? styles.invalidPreset : {}) }}
+                style={{ ...styles.presetBtn, ...(isEdgeCase ? styles.invalidPreset : {}) }}
                 onClick={() => applyPreset(p)}
               >
-                {isInvalid ? "⚠ " : ""}{p.label}
+                {p.label}
               </button>
             );
           })}
         </div>
 
         <div style={{ ...styles.panel, marginTop: 16 }}>
-          <div style={styles.sectionTitle}>Feature Inputs</div>
+          <div style={styles.sectionTitle}>Manual Feature Entry</div>
           <form onSubmit={handleSubmit}>
             {Object.entries(FIELD_META).map(([field, meta]) => (
               <div key={field} style={styles.fieldRow}>
@@ -264,10 +545,7 @@ export default function PredictPanel() {
                   placeholder={meta.placeholder}
                   value={form[field]}
                   onChange={(e) => handleChange(field, e.target.value)}
-                  style={{
-                    ...styles.input,
-                    ...(fieldErrors[field] ? styles.errorInput : {}),
-                  }}
+                  style={{ ...styles.input, ...(fieldErrors[field] ? styles.errorInput : {}) }}
                 />
                 {fieldErrors[field] && (
                   <div style={{ color: "var(--ember-text)", fontSize: 11, marginTop: 3 }}>{fieldErrors[field]}</div>
@@ -276,40 +554,28 @@ export default function PredictPanel() {
               </div>
             ))}
             <button type="submit" style={styles.btn} disabled={loading}>
-              {loading ? "Running model…" : "Run Prediction"}
+              {loading ? "Running…" : "Run Prediction"}
             </button>
           </form>
         </div>
       </div>
 
-      {/* Right: result */}
       <div>
         {!result && !validationErrors && (
           <div style={{ ...styles.panel, color: "var(--chalk-dim)", fontSize: 13, lineHeight: 1.8 }}>
-            <strong style={{ color: "var(--chalk)" }}>How to use this panel</strong>
+            <strong style={{ color: "var(--chalk)" }}>Scenario testing</strong>
             <p style={{ marginTop: 8 }}>
-              Select a preset scenario or enter feature values manually, then click <em>Run Prediction</em>.
-            </p>
-            <p>
-              The model returns a risk probability, risk level, and a narrative explaining which features
-              are driving the classification — with reference to the evidence-based thresholds from
-              Kuradusenge et al. (2020).
-            </p>
-            <p>
-              Try the two <span style={{ color: "var(--ember-text)" }}>invalid presets</span> to see how the API
-              rejects physically impossible inputs (negative rainfall, slope &gt; 90°) with
-              422 validation errors before the model even runs.
+              Enter feature values by hand or pick a preset, then run the prediction. Use this to test
+              hypothetical conditions — for real slope units, use the main Predict view instead.
             </p>
           </div>
         )}
 
         {validationErrors && (
           <div style={styles.errorBox}>
-            <div style={styles.errorTitle}>
-              Input Validation Failed (HTTP 422 — Unprocessable Entity)
-            </div>
+            <div style={styles.errorTitle}>Input rejected</div>
             <p style={{ color: "var(--chalk-dim)", fontSize: 12, marginBottom: 12 }}>
-              The API rejected the request before running the model. Fix the inputs below:
+              Fix the values below and try again:
             </p>
             {validationErrors.map((err, i) => (
               <div key={i} style={styles.errorItem}>
@@ -319,160 +585,44 @@ export default function PredictPanel() {
                 )}
               </div>
             ))}
-            <p style={{ color: "var(--chalk-dim)", fontSize: 11, marginTop: 12, marginBottom: 0 }}>
-              This demonstrates system robustness — invalid data is rejected at the API boundary,
-              never reaching the model or database.
-            </p>
           </div>
         )}
 
         {result && (
-          <div>
-            {/* Risk summary */}
-            <div style={{ ...styles.panel, borderColor: riskColors.border, marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                <RiskBadge level={result.risk_level} />
-                <span style={{ color: "var(--chalk-dim)", fontSize: 12 }}>
-                  Alert threshold: {Math.round(result.production_threshold * 100)}%
-                </span>
-                {result.alert_triggered && (
-                  <span style={{ color: "var(--ember)", fontSize: 12, fontWeight: 600 }}>
-                    ⚠ ALERT THRESHOLD EXCEEDED
-                  </span>
-                )}
-              </div>
-
-              <div style={styles.metricRow}>
-                <div style={styles.metric}>
-                  <div style={{ ...styles.metricVal, color: riskColors.text }}>
-                    {result.risk_probability_pct}%
-                  </div>
-                  <div style={styles.metricLabel}>Risk Probability</div>
-                </div>
-                <div style={styles.metric}>
-                  <div style={{ ...styles.metricVal, color: result.alert_triggered ? "var(--ember)" : "var(--moss-text)" }}>
-                    {result.alert_triggered ? "YES" : "NO"}
-                  </div>
-                  <div style={styles.metricLabel}>Alert Triggered</div>
-                </div>
-                <div style={styles.metric}>
-                  <div style={{ ...styles.metricVal, color: "var(--chalk-dim)", fontSize: 16 }}>
-                    {result.input_summary.slope_angle}° / {result.input_summary.daily_mm}mm
-                  </div>
-                  <div style={styles.metricLabel}>Slope / Daily Rain</div>
-                </div>
-              </div>
-
-              <div style={{ ...styles.sectionTitle, marginTop: 4 }}>Model Reasoning</div>
-              <div style={styles.narrative}>{result.risk_narrative}</div>
-            </div>
-
-            {/* Expert SMS dispatch */}
-            <div style={{ ...styles.panel, marginBottom: 16, borderColor: result.alert_triggered ? "var(--ember)" : "var(--line-strong)" }}>
-              <div style={styles.sectionTitle}>Expert SMS Dispatch</div>
-              <p style={{ fontSize: 12, color: "var(--chalk-dim)", marginBottom: 12, marginTop: 0 }}>
-                Enter the district name and send an SMS alert directly to registered field officers.
-                {!result.alert_triggered && " The model is below threshold — use Force Send to override."}
-              </p>
-              <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
-                <input
-                  type="text"
-                  placeholder="District (e.g. Musanze)"
-                  value={alertDistrict}
-                  onChange={(e) => { setAlertDistrict(e.target.value); setAlertResult(null); }}
-                  style={{ ...styles.input, flex: 1, minWidth: 160 }}
-                />
-                <button
-                  onClick={() => handleSendAlert(false)}
-                  disabled={alertLoading || !alertDistrict.trim() || !result.alert_triggered}
-                  style={{
-                    ...styles.btn, width: "auto", padding: "8px 16px", marginTop: 0,
-                    background: result.alert_triggered ? "var(--ember)" : "var(--panel-2)",
-                    color: "#fff",
-                    cursor: (alertLoading || !alertDistrict.trim() || !result.alert_triggered) ? "not-allowed" : "pointer",
-                    opacity: (!alertDistrict.trim() || !result.alert_triggered) ? 0.5 : 1,
-                  }}
-                >
-                  {alertLoading ? "Sending…" : "Send SMS Alert"}
-                </button>
-                <button
-                  onClick={() => handleSendAlert(true)}
-                  disabled={alertLoading || !alertDistrict.trim()}
-                  style={{
-                    ...styles.btn, width: "auto", padding: "8px 16px", marginTop: 0,
-                    background: "rgba(201,154,62,0.15)",
-                    border: "1px solid rgba(201,154,62,0.4)",
-                    color: "var(--amber-text)",
-                    cursor: (alertLoading || !alertDistrict.trim()) ? "not-allowed" : "pointer",
-                    opacity: !alertDistrict.trim() ? 0.5 : 1,
-                    fontSize: 12,
-                  }}
-                >
-                  Force Send
-                </button>
-              </div>
-
-              {alertResult && !alertResult.error && alertResult.sent && (
-                <div style={{ marginTop: 12, background: "rgba(116,147,106,0.12)", border: "1px solid rgba(116,147,106,0.35)", borderRadius: 6, padding: 12 }}>
-                  <div style={{ color: "var(--moss-text)", fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
-                    ✓ SMS sent to {alertResult.sms_count} recipient{alertResult.sms_count !== 1 ? "s" : ""} in {alertResult.district}
-                    {alertResult.forced && <span style={{ color: "var(--amber-text)" }}> (expert override)</span>}
-                  </div>
-                  {alertResult.recipients.map((r) => (
-                    <div key={r.alert_id} style={{ fontSize: 12, color: "var(--moss-text)" }}>
-                      → {r.name} ({r.phone})
-                    </div>
-                  ))}
-                </div>
-              )}
-              {alertResult && !alertResult.error && !alertResult.sent && (
-                <div style={{ marginTop: 12, background: "var(--panel-2)", borderRadius: 6, padding: 10, fontSize: 12, color: "var(--chalk-dim)" }}>
-                  {alertResult.reason}
-                </div>
-              )}
-              {alertResult && alertResult.error && (
-                <div style={{ marginTop: 12, background: "rgba(194,75,58,0.12)", borderRadius: 6, padding: 10, fontSize: 12, color: "var(--ember-text)" }}>
-                  {alertResult.error}
-                </div>
-              )}
-            </div>
-
-            {/* Top features */}
-            <div style={styles.panel}>
-              <div style={styles.sectionTitle}>Top Contributing Features</div>
-              {(() => {
-                const maxImp = Math.max(...result.top_features.map((f) => f.importance), 0.001);
-                return result.top_features.map((f, i) => (
-                  <div key={f.feature} style={styles.featureRow}>
-                    <div style={styles.rank}>{i + 1}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={styles.featureName}>{f.label}</div>
-                      <div style={styles.featureValue}>
-                        Value: <strong>{f.value ?? "N/A"}</strong>
-                        {" · "}
-                        Importance: {(f.importance * 100).toFixed(1)}%
-                      </div>
-                      {f.threshold_context && (
-                        <div style={{
-                          ...styles.featureCtx,
-                          color: THRESHOLD_COLORS[f.threshold_status] || "var(--chalk-dim)",
-                        }}>
-                          {f.threshold_context}
-                        </div>
-                      )}
-                      <div style={{ ...styles.impBar, width: `${Math.round((f.importance / maxImp) * 100)}%` }} />
-                    </div>
-                  </div>
-                ));
-              })()}
-              <div style={{ marginTop: 14, fontSize: 11, color: "var(--chalk-dim)" }}>
-                Importances from best-selected model (XGBoost, mean decrease in impurity, 5-fold CV).
-                Thresholds based on Kuradusenge et al. (2020), Northern Province Rwanda.
-              </div>
-            </div>
-          </div>
+          <ResultPanel
+            result={result}
+            onSendAlert={handleSendAlert}
+            alertDistrict={alertDistrict}
+            setAlertDistrict={setAlertDistrict}
+            alertLoading={alertLoading}
+            alertResult={alertResult}
+          />
         )}
       </div>
+    </div>
+  );
+}
+
+export default function PredictPanel() {
+  const [mode, setMode] = useState("officer");
+
+  return (
+    <div>
+      <div style={styles.modeTabs}>
+        <button
+          style={{ ...styles.modeTab, ...(mode === "officer" ? styles.modeTabActive : {}) }}
+          onClick={() => setMode("officer")}
+        >
+          By Slope Unit
+        </button>
+        <button
+          style={{ ...styles.modeTab, ...(mode === "advanced" ? styles.modeTabActive : {}) }}
+          onClick={() => setMode("advanced")}
+        >
+          Advanced / Scenario Testing
+        </button>
+      </div>
+      {mode === "officer" ? <OfficerMode /> : <AdvancedMode />}
     </div>
   );
 }

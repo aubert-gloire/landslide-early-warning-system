@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-      :root {
+      :root, :root[data-theme="dark"] {
         --ink: #14171A;
         --panel: #1E2328;
         --panel-2: #20262B;
@@ -27,6 +27,27 @@
         --amber-text: #E3B769;
         --ember: #C24B3A;
         --ember-text: #E2836F;
+        --shadow: 0 8px 40px rgba(0,0,0,0.5);
+        --radius: 10px;
+      }
+      :root[data-theme="light"] {
+        --ink: #F1F0EC;
+        --panel: #FFFFFF;
+        --panel-2: #F7F6F3;
+        --terminal: #EDECE6;
+        --chalk: #1C1F22;
+        --chalk-dim: #676E71;
+        --line: rgba(28,31,34,0.10);
+        --line-strong: rgba(28,31,34,0.18);
+        --storm: #35617D;
+        --storm-text: #2C5570;
+        --moss: #46683F;
+        --moss-text: #3D5B36;
+        --amber: #916018;
+        --amber-text: #7A5114;
+        --ember: #C24B3A;
+        --ember-text: #A63626;
+        --shadow: 0 4px 24px rgba(28,31,34,0.08);
         --radius: 10px;
       }
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,6 +72,15 @@
     </style>
   </head>
   <body>
+    <script>
+      (function () {
+        var saved = localStorage.getItem("ews-theme");
+        var theme = saved === "light" || saved === "dark"
+          ? saved
+          : (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

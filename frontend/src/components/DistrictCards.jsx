@@ -1,4 +1,13 @@
 import { useApi } from "../hooks/useApi";
+import RadialGauge from "./RadialGauge";
+
+function riskLevelKey(prob) {
+  if (prob == null) return "low";
+  if (prob >= 0.80) return "critical";
+  if (prob >= 0.60) return "high";
+  if (prob >= 0.40) return "medium";
+  return "low";
+}
 
 const DISTRICT_INFO = {
   Gakenke: { color: "#6C9AB5" },
@@ -91,11 +100,10 @@ export default function DistrictCards() {
               <span style={styles.riskBadge(prob)}>{riskLabel(prob)}</span>
             </div>
 
-            <div style={styles.stat}>
-              <div style={styles.statLabel}>Peak risk today</div>
-              <div style={{ ...styles.statValue, color: riskTextColor(prob) }}>
-                {prob != null ? `${Math.round(prob * 100)}%` : "—"}
-              </div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+              {prob != null
+                ? <RadialGauge value={prob * 100} level={riskLevelKey(prob)} label="Peak risk today" size={80} />
+                : <span style={{ fontSize: 12, color: "var(--chalk-dim)" }}>No data yet</span>}
             </div>
 
             <div style={styles.stat}>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 const BOT_NAME = "EWS Guide";
 
 const WELCOME = `Hello! I'm the EWS Guide.\n\nIf you're new here, start with "How does the system work?" — I'll walk you through the full picture from satellite rainfall to SMS alert.\n\nOr pick any question below.`;
@@ -156,6 +157,7 @@ export default function HelpChat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [hasOpened, setHasOpened] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -171,15 +173,31 @@ export default function HelpChat() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, thinking]);
 
-  function send(text) {
+  async function send(text) {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    const userMsg = { role: "user", text: trimmed };
-    const botMsg  = { role: "bot",  text: matchAnswer(trimmed) };
-    setMessages((prev) => [...prev, userMsg, botMsg]);
+    if (!trimmed || thinking) return;
+    setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
     setInput("");
+    setThinking(true);
+
+    let answer;
+    try {
+      const res = await fetch(`${API_BASE}/api/help/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: trimmed }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      answer = (await res.json()).answer;
+    } catch {
+      answer = matchAnswer(trimmed); // offline/backend-down fallback
+    }
+
+    setThinking(false);
+    setMessages((prev) => [...prev, { role: "bot", text: answer }]);
   }
 
   function handleKey(e) {
@@ -194,11 +212,11 @@ export default function HelpChat() {
       {/* Chat panel */}
       {open && (
         <div style={{
-          position: "fixed", bottom: 84, right: 24, zIndex: 9990,
-          width: 340, maxHeight: 520,
+          position: "fixed", bottom: 72, right: 20, zIndex: 9990,
+          width: 320, maxHeight: 480,
           background: "var(--panel)", border: "1px solid var(--line-strong)",
           borderRadius: 14, display: "flex", flexDirection: "column",
-          boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+          boxShadow: "var(--shadow)",
         }}>
           {/* Header */}
           <div style={{
@@ -245,6 +263,14 @@ export default function HelpChat() {
               </div>
             )}
 
+            {thinking && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                <span style={{ fontSize: 10, color: "var(--chalk-dim)", fontFamily: "'Space Mono', monospace" }}>
+                  {BOT_NAME} is typing…
+                </span>
+              </div>
+            )}
+
             <div ref={bottomRef} />
           </div>
 
@@ -259,6 +285,7 @@ export default function HelpChat() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKey}
               placeholder="Ask about the system…"
+              disabled={thinking}
               style={{
                 flex: 1, background: "var(--panel-2)", border: "1px solid var(--line-strong)",
                 color: "var(--chalk)", borderRadius: 8, padding: "8px 11px", fontSize: 13,
@@ -267,12 +294,12 @@ export default function HelpChat() {
             />
             <button
               onClick={() => send(input)}
-              disabled={!input.trim()}
+              disabled={!input.trim() || thinking}
               style={{
                 padding: "8px 14px", background: "var(--ember)", border: "none",
                 borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600,
-                cursor: input.trim() ? "pointer" : "not-allowed",
-                opacity: input.trim() ? 1 : 0.5,
+                cursor: (input.trim() && !thinking) ? "pointer" : "not-allowed",
+                opacity: (input.trim() && !thinking) ? 1 : 0.5,
               }}
             >
               ↑
@@ -286,14 +313,14 @@ export default function HelpChat() {
         onClick={() => setOpen((v) => !v)}
         title="Help & guidance"
         style={{
-          position: "fixed", bottom: 24, right: 24, zIndex: 9991,
-          width: 52, height: 52, borderRadius: "50%",
+          position: "fixed", bottom: 20, right: 20, zIndex: 9991,
+          width: 40, height: 40, borderRadius: "50%",
           background: open ? "var(--panel-2)" : "var(--ember)",
           border: "1px solid var(--line-strong)",
-          color: "#fff", fontSize: 22, cursor: "pointer",
-          boxShadow: "0 4px 20px rgba(194,75,58,0.35)",
+          color: open ? "var(--chalk-dim)" : "#fff", fontSize: 16, cursor: "pointer",
+          boxShadow: open ? "var(--shadow)" : "0 3px 14px rgba(194,75,58,0.3)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "background .2s, transform .15s",
+          transition: "background .2s, transform .15s, box-shadow .2s",
           transform: open ? "rotate(45deg)" : "rotate(0deg)",
         }}
       >

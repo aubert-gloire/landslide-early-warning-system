@@ -8,6 +8,8 @@ import PipelineLog from "./components/PipelineLog";
 import PredictPanel from "./components/PredictPanel";
 import Login from "./components/Login";
 import HelpChat from "./components/HelpChat";
+import ThemeToggle from "./components/ThemeToggle";
+import SeverityStrip from "./components/SeverityStrip";
 
 const TABS = ["Overview", "Risk Map", "Predict", "Alerts", "History", "Districts"];
 
@@ -99,9 +101,11 @@ export default function App() {
               <span style={{ color: "var(--chalk)", fontWeight: 500 }}>{officer.name}</span>
               {" · "}{officer.district}
             </div>
+            <ThemeToggle />
             <button
               onClick={startPipeline}
               disabled={pipelineRunning}
+              title="Fetch today's satellite rainfall and re-score all 396 slope units now, instead of waiting for the next scheduled run"
               style={{
                 padding: "7px 14px", borderRadius: "var(--radius)",
                 background: "var(--ember)", border: "1px solid var(--ember)",
@@ -109,7 +113,7 @@ export default function App() {
                 opacity: pipelineRunning ? 0.6 : 1,
               }}
             >
-              {pipelineRunning ? "Running…" : "Run Pipeline"}
+              {pipelineRunning ? "Running…" : "Run Today's Prediction"}
             </button>
             <button
               onClick={handleLogout}
@@ -212,20 +216,13 @@ export default function App() {
 
       {/* Footer */}
       <footer style={{
-        borderTop: "1px solid var(--line)", padding: "20px 28px",
-        display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
+        borderTop: "1px solid var(--line)", padding: "16px 28px",
+        display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12,
         maxWidth: 1120, margin: "0 auto", width: "100%",
       }}>
-        <span style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          background: "rgba(116,147,106,0.12)", color: "var(--moss-text)",
-          border: "1px solid rgba(116,147,106,0.3)", borderRadius: 999,
-          padding: "5px 14px", fontSize: 11, fontFamily: "'Space Mono', monospace",
-        }}>
-          ✓ XGBoost · AUC 0.959 · FNR 8.3% · backtested 396 slope units
-        </span>
+        <SeverityStrip refreshKey={dashboardKey} />
         <span style={{ fontSize: 11, color: "var(--chalk-dim)" }}>
-          Data: GPM IMERG / CHIRPS · Copernicus 30m DEM · Sentinel-2 NDVI · ISRIC soil · USGS Seismic
+          Northern Province · Gakenke · Burera · Musanze · Gicumbi
         </span>
       </footer>
 

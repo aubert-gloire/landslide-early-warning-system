@@ -284,6 +284,83 @@ async def predict_point(body: PredictRequest):
     }
 
 
+@router.get("/predict/unit/{unit_id}")
+async def predict_for_unit(unit_id: int):
+    """
+    Officer-mode prediction: look up the most recent pipeline run's real
+    satellite/terrain/rainfall values for this slope unit and return the same
+    risk assessment shape as POST /predict — no manual data entry required.
+    """
+    db = get_db()
+    latest = await db.predictions.find_one(
+        {"slope_unit_id": unit_id}, sort=[("date", -1)]
+    )
+    if not latest:
+        raise HTTPException(
+            status_code=404,
+            detail="No assessment found for this slope unit yet. Run the pipeline first.",
+        )
+
+    feature_vals = latest.get("features") or {}
+    if feature_vals.get("slope_angle") is None or feature_vals.get("daily_mm") is None:
+        raise HTTPException(
+            status_code=503,
+            detail="This slope unit's latest run is missing required data. Re-run the pipeline.",
+        )
+
+    request_kwargs = {k: v for k, v in feature_vals.items() if v is not None}
+    if "soil_class" in request_kwargs:
+        request_kwargs["soil_class"] = int(request_kwargs["soil_class"])
+    if "landuse_class" in request_kwargs:
+        request_kwargs["landuse_class"] = int(request_kwargs["landuse_class"])
+    body = PredictRequest(**request_kwargs)
+
+    settings = get_settings()
+    try:
+        model_wrapper = XGBModel.load(settings.artifacts_path())
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="Model not loaded.")
+
+    prob = float(latest["risk_probability"])
+    alert = bool(latest["alert_triggered"])
+    risk_level = _risk_level(prob)
+
+    top_features_enriched = []
+    for name, imp in latest.get("top_features", []):
+        val = feature_vals.get(name)
+        ctx = _threshold_context(name, val) if val is not None else {"status": "no_value", "context": ""}
+        top_features_enriched.append({
+            "feature":    name,
+            "label":      name.replace("_", " "),
+            "value":      val,
+            "importance": imp,
+            "threshold_status":  ctx["status"],
+            "threshold_context": ctx["context"],
+        })
+
+    narrative = _build_narrative(body, prob, risk_level, top_features_enriched)
+
+    return {
+        "unit_id":              unit_id,
+        "district":             latest.get("district", ""),
+        "sector":               latest.get("sector", ""),
+        "data_date":            latest.get("date"),
+        "risk_probability":     round(prob, 4),
+        "risk_probability_pct": round(prob * 100, 1),
+        "risk_level":           risk_level,
+        "alert_triggered":      alert,
+        "production_threshold": model_wrapper.production_threshold,
+        "top_features":         top_features_enriched,
+        "risk_narrative":       narrative,
+        "input_summary": {
+            "slope_angle":        body.slope_angle,
+            "daily_mm":           body.daily_mm,
+            "antecedent_5day_mm": body.antecedent_5day_mm,
+        },
+        "features": feature_vals,
+    }
+
+
 class ManualAlertRequest(PredictRequest):
     district: str = Field(
         ..., min_length=1,
