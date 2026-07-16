@@ -3,6 +3,9 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# backend/app/config.py -> repo root (two levels up from backend/)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -53,16 +56,16 @@ class Settings(BaseSettings):
         return self.app_env == "production"
 
     def raw_path(self) -> Path:
-        return Path(self.data_raw_dir)
+        return REPO_ROOT / self.data_raw_dir
 
     def processed_path(self) -> Path:
-        return Path(self.data_processed_dir)
+        return REPO_ROOT / self.data_processed_dir
 
     def labels_path(self) -> Path:
-        return Path(self.data_labels_dir)
+        return REPO_ROOT / self.data_labels_dir
 
     def artifacts_path(self) -> Path:
-        return Path(self.ml_artifacts_dir)
+        return REPO_ROOT / self.ml_artifacts_dir
 
 
 @lru_cache
