@@ -15,6 +15,7 @@ class AlertRecord(BaseModel):
     district: str | None = None
     slope_unit_id: int | None = None
     risk_probability: float | None = None
+    rainfall_available: bool = True
     # Populated by inbound SMS webhook — officer confirms/denies landslide occurred
     feedback: str | None = None
     feedback_at: datetime | None = None

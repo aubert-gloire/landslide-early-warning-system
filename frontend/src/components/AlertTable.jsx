@@ -101,16 +101,16 @@ export default function AlertTable() {
         <table style={styles.table}>
           <thead>
             <tr>
-              {["Sent at", "District", "Unit ID", "Risk %", "Status", "Officer Feedback"].map((h) => (
+              {["Sent at", "District", "Unit ID", "Risk %", "Data", "Status", "Officer Feedback"].map((h) => (
                 <th key={h} style={styles.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} style={styles.empty}>Loading…</td></tr>
+              <tr><td colSpan={7} style={styles.empty}>Loading…</td></tr>
             ) : alerts.length === 0 ? (
-              <tr><td colSpan={6} style={styles.empty}>
+              <tr><td colSpan={7} style={styles.empty}>
                 No alerts found{district ? ` for ${district}` : ""} — alerts are dispatched when a slope unit exceeds the production risk threshold
               </td></tr>
             ) : alerts.map((a) => {
@@ -123,6 +123,11 @@ export default function AlertTable() {
                   <td style={styles.td}>{a.district || "—"}</td>
                   <td style={{ ...styles.td, fontFamily: "'Space Mono', monospace", color: "var(--chalk-dim)" }}>{a.slope_unit_id || "—"}</td>
                   <td style={styles.td}>{riskPct != null ? `${riskPct}%` : "—"}</td>
+                  <td style={styles.td}>
+                    {a.rainfall_available === false
+                      ? <span style={styles.badge({ bg: "rgba(201,154,62,0.12)", text: "var(--amber-text)" })}>TERRAIN-ONLY</span>
+                      : <span style={{ color: "var(--chalk-dim)", fontSize: 11 }}>—</span>}
+                  </td>
                   <td style={styles.td}>
                     <span style={styles.badge(statusStyle)}>{a.delivery_status}</span>
                   </td>

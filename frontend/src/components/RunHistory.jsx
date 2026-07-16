@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApi } from "../hooks/useApi";
+import RunHeatmap from "./RunHeatmap";
 
 const DISTRICTS = ["Gakenke", "Burera", "Musanze", "Gicumbi"];
 const PAGE_SIZE = 20;
@@ -70,6 +71,8 @@ export default function RunHistory() {
 
   return (
     <div>
+      <RunHeatmap refreshKey={page} />
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <span style={{ color: "var(--chalk-dim)", fontSize: 12 }}>
           {total} pipeline runs recorded
@@ -85,16 +88,16 @@ export default function RunHistory() {
         <table style={styles.table}>
           <thead>
             <tr>
-              {["Date", "Action", "Peak Risk", "Alerts", "SMS Sent", ...DISTRICTS, "Seismic"].map(h => (
+              {["Date", "Action", "Rainfall", "Peak Risk", "Alerts", "SMS Sent", ...DISTRICTS, "Seismic"].map(h => (
                 <th key={h} style={styles.th}>{h.toUpperCase()}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} style={styles.empty}>Loading…</td></tr>
+              <tr><td colSpan={11} style={styles.empty}>Loading…</td></tr>
             ) : runs.length === 0 ? (
-              <tr><td colSpan={10} style={styles.empty}>
+              <tr><td colSpan={11} style={styles.empty}>
                 No runs recorded yet — history is saved after each pipeline execution.
               </td></tr>
             ) : runs.map((r) => {
@@ -113,6 +116,11 @@ export default function RunHistory() {
                   </td>
                   <td style={styles.td}>
                     <StatusBadge triggered={r.alerts_triggered > 0} />
+                  </td>
+                  <td style={{ ...styles.td, fontSize: 12 }}>
+                    {r.rainfall_available === false
+                      ? <span style={{ color: "var(--amber-text)" }}>Terrain-only</span>
+                      : <span style={{ color: "var(--moss-text)" }}>OK</span>}
                   </td>
                   <td style={{ ...styles.td, fontFamily: "'Space Mono', monospace" }}>
                     <span style={{ color: riskColor(r.max_risk_probability) }}>

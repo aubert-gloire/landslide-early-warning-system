@@ -9,7 +9,7 @@ router = APIRouter()
 
 @router.get("/pipeline-runs")
 async def get_pipeline_runs(
-    limit: int = Query(default=30, le=100),
+    limit: int = Query(default=30, le=400),
     skip:  int = Query(default=0),
 ):
     """Returns daily pipeline run history, newest first."""

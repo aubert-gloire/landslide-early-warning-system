@@ -71,16 +71,18 @@ def build_alert_message(
     sector: str = "",
     centroid_lat: float | None = None,
     centroid_lon: float | None = None,
+    rainfall_available: bool = True,
 ) -> str:
     prob_pct = int(risk_probability * 100)
     level, action = get_alert_level(risk_probability)
     driver = top_features[0][0].replace("_", " ") if top_features else ""
     location = f"{district}/{sector}" if sector else district
     gps = f" {centroid_lat:.2f},{centroid_lon:.2f}" if centroid_lat is not None else ""
+    note = "\nNOTE: rainfall data unavailable today, based on terrain only" if not rainfall_available else ""
     return (
         f"LSEWS {level} {location}{gps}\n"
         f"Unit:{unit_id} Risk:{prob_pct}% Driver:{driver}\n"
-        f"{action}\n"
+        f"{action}{note}\n"
         f"Reply YES {unit_id} or NO {unit_id}"
     )
 
@@ -162,13 +164,17 @@ async def send_alert(
     sector: str = "",
     centroid_lat: float | None = None,
     centroid_lon: float | None = None,
+    rainfall_available: bool = True,
 ) -> str:
     """Send SMS alert and write AlertRecord to MongoDB. Returns alert_id."""
     from ..models.alert import AlertRecord
     import uuid
 
     settings = get_settings()
-    message = build_alert_message(district, unit_id, risk_probability, top_features, sector, centroid_lat, centroid_lon)
+    message = build_alert_message(
+        district, unit_id, risk_probability, top_features, sector,
+        centroid_lat, centroid_lon, rainfall_available,
+    )
     alert_id = str(uuid.uuid4())
 
     alert = AlertRecord(
@@ -180,6 +186,7 @@ async def send_alert(
         district=district,
         slope_unit_id=unit_id,
         risk_probability=risk_probability,
+        rainfall_available=rainfall_available,
     )
 
     db = get_db()
