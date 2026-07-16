@@ -13,7 +13,6 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import geopandas as gpd
 import pandas as pd
 
 from ..config import get_settings
@@ -98,8 +97,10 @@ class DataPipeline:
         self._xgb_model: XGBModel | None = None
         self.running: bool = False  # prevents concurrent runs from scheduler + trigger
 
-    def _get_slope_units(self) -> gpd.GeoDataFrame:
+    def _get_slope_units(self) -> "gpd.GeoDataFrame":
         if self._slope_units is None:
+            import geopandas as gpd  # lazy — keeps GDAL/pyproj out of the idle startup footprint
+
             gpkg = self.settings.processed_path() / "slope_units.gpkg"
             if not gpkg.exists():
                 raise FileNotFoundError(
@@ -147,6 +148,14 @@ class DataPipeline:
             logger.warning("run_daily called while already running — skipping duplicate.")
             return {"skipped": True, "reason": "already_running"}
         self.running = True
+        try:
+            return await self._run_daily_impl(log_fn)
+        finally:
+            # Always clear the guard, even if the pipeline raised partway through —
+            # otherwise one failed run permanently blocks every future trigger.
+            self.running = False
+
+    async def _run_daily_impl(self, log_fn=None) -> dict:
         async def log(msg):
             ts = datetime.now().strftime("%H:%M:%S")
             entry = f"[{ts}] {msg}"
@@ -225,7 +234,11 @@ class DataPipeline:
                 if tif_path:
                     await log(f"Step 2/3 — CHIRPS file ready — extracting {len(_su)} slope units (~60s)…")
                 else:
-                    await log("Step 2/3 — CHIRPS download failed — using zero rainfall fallback…")
+                    await log(
+                        "Step 2/3 — CHIRPS download failed (CHIRPS Preliminary has a ~4-day lag, "
+                        "so it usually can't serve yesterday's date either) — rainfall will be "
+                        "missing for this run, not zero. XGBoost will score on terrain signal only."
+                    )
                 daily_df = await asyncio.to_thread(downloader.extract_per_unit_rainfall, yesterday, _su)
 
             await log("Step 3/3 — Per-unit extraction complete — computing 3/5/10-day antecedent windows…")
@@ -249,17 +262,26 @@ class DataPipeline:
                 combined["daily_mm"] / (combined["antecedent_5day_mm"] + 1.0)
             ).round(4)
             rainfall_df = combined[combined["date"] == pd.Timestamp(yesterday)].reset_index(drop=True)
+            # Only cache rows with a real value. Previously `row.get("daily_mm", 0) or 0`
+            # looked like it defaulted missing rainfall to 0, but `NaN or 0` evaluates to
+            # NaN (NaN is truthy in Python) — so a failed IMERG+CHIRPS day got cached as
+            # NaN for all 396 units. The cache-hit fast path above only checks record
+            # *count*, not validity, so that NaN silently poisoned every later run that
+            # same day — including the 16:00 UTC fallback job, which never got a real
+            # chance to retry. Skipping NaN rows here means a failed day leaves the cache
+            # empty, so the next run that day retries the fetch instead of reusing garbage.
             rain_upserts = [
                 _UpdateOne(
                     {"slope_unit_id": int(row["unit_id"]), "date": rainfall_date},
                     {"$set": {
                         "slope_unit_id": int(row["unit_id"]),
                         "date": rainfall_date,
-                        "daily_mm": float(row.get("daily_mm", 0) or 0),
+                        "daily_mm": float(row["daily_mm"]),
                     }},
                     upsert=True,
                 )
                 for _, row in rainfall_df.iterrows()
+                if pd.notna(row.get("daily_mm"))
             ]
             if rain_upserts:
                 await db.rainfall_records.bulk_write(rain_upserts, ordered=False)
@@ -267,6 +289,19 @@ class DataPipeline:
 
         max_rain = float(rainfall_df["antecedent_5day_mm"].max()) if len(rainfall_df) else 0
         await log(f"Rainfall ready — {len(rainfall_df)} units, max 5-day antecedent: {max_rain:.1f} mm")
+
+        # Rainfall is ~79% of the model's feature importance (5-day + 3-day antecedent
+        # combined) — when IMERG and CHIRPS both fail, the run still completes on
+        # terrain-only signal rather than blocking, but every downstream record and
+        # SMS this run produces gets tagged so officers know to weigh it differently.
+        rainfall_coverage_pct = (
+            round(float(rainfall_df["daily_mm"].notna().mean()) * 100, 1) if len(rainfall_df) else 0.0
+        )
+        # bool(...) matters here — numpy.float64 > 0 returns numpy.bool_, which
+        # PyMongo/BSON cannot encode ("cannot encode object: np.False_").
+        rainfall_available = bool(rainfall_coverage_pct > 0)
+        if not rainfall_available:
+            await log("⚠ No rainfall data available for any unit this run — scoring on terrain signal only")
 
         await log("Building feature matrix (terrain + NDVI + soil + rainfall)…")
         feature_df = self.build_feature_matrix(rainfall_df)
@@ -308,14 +343,22 @@ class DataPipeline:
         slope_units = _su[_cols]
         predictions_df = predictions_df.merge(slope_units, on="unit_id", how="left")
 
+        # Carry the raw feature values used for inference — powers the officer-mode
+        # slope-unit lookup (GET /api/predict/unit/{unit_id}), which reads today's
+        # already-computed values instead of asking the officer to type them in.
+        feature_cols_present = [c for c in model.feature_cols if c in feature_df.columns]
+        feature_lookup = feature_df.set_index("unit_id")[feature_cols_present].to_dict(orient="index")
+
         # Step 4 — write all predictions
         await log("Saving predictions to MongoDB…")
         prediction_docs = []
         for _, row in predictions_df.iterrows():
             prob = float(row["risk_probability"])
             alert_level, _ = get_alert_level(prob)
+            unit_id = int(row["unit_id"])
+            raw_features = feature_lookup.get(unit_id, {})
             doc = {
-                "slope_unit_id": int(row["unit_id"]),
+                "slope_unit_id": unit_id,
                 "date": run_date.isoformat(),
                 "risk_probability": prob,
                 "alert_triggered": bool(row["alert_triggered"]),
@@ -323,6 +366,8 @@ class DataPipeline:
                 "district": str(row.get("district", "Unknown")),
                 "sector": str(row.get("sector", "")),
                 "top_features": list(row["top_features"]),
+                "features": {k: (None if pd.isna(v) else float(v)) for k, v in raw_features.items()},
+                "rainfall_available": rainfall_available,
                 "created_at": datetime.utcnow().isoformat(),
             }
             prediction_docs.append(doc)
@@ -364,6 +409,7 @@ class DataPipeline:
                         unit_id=int(row["unit_id"]),
                         risk_probability=float(row["risk_probability"]),
                         top_features=list(row["top_features"]),
+                        rainfall_available=rainfall_available,
                         centroid_lat=float(row["centroid_lat"]) if "centroid_lat" in row and row["centroid_lat"] is not None else None,
                         centroid_lon=float(row["centroid_lon"]) if "centroid_lon" in row and row["centroid_lon"] is not None else None,
                     )
@@ -383,6 +429,8 @@ class DataPipeline:
             "seismic_count": seismic["count"],
             "seismic_max_magnitude": seismic.get("max_magnitude"),
             "threshold_used": threshold_override if threshold_override is not None else model.production_threshold,
+            "rainfall_available": rainfall_available,
+            "rainfall_coverage_pct": rainfall_coverage_pct,
         }
         await log(f"Pipeline complete — {alert_count} SMS sent, {len(predictions_df)} units processed")
         logger.info("=== Daily pipeline complete: %s ===", summary)
@@ -404,8 +452,9 @@ class DataPipeline:
             "sms_sent":            summary["sms_sent"],
             "seismic_detected":    summary["seismic_detected"],
             "threshold_used":      summary["threshold_used"],
+            "rainfall_available":  summary["rainfall_available"],
+            "rainfall_coverage_pct": summary["rainfall_coverage_pct"],
             "districts":           district_stats,
         })
 
-        self.running = False
         return summary

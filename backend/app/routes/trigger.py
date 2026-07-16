@@ -9,7 +9,7 @@ import json
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -18,15 +18,12 @@ from ..services.pipeline import DataPipeline
 
 router = APIRouter()
 
-_pipeline: DataPipeline | None = None
-_running = False  # global lock — prevents concurrent pipeline runs
 
-
-def get_pipeline() -> DataPipeline:
-    global _pipeline
-    if _pipeline is None:
-        _pipeline = DataPipeline()
-    return _pipeline
+def get_pipeline(request: Request) -> DataPipeline:
+    """The single DataPipeline instance created at startup (app.state.pipeline) —
+    shared with the scheduler so pipeline.running is one authoritative guard
+    against concurrent runs, instead of each entry point tracking its own flag."""
+    return request.app.state.pipeline
 
 
 class TriggerRequest(BaseModel):
@@ -38,6 +35,7 @@ class TriggerRequest(BaseModel):
 
 @router.post("/trigger")
 async def trigger_prediction(
+    request: Request,
     body: TriggerRequest = Body(default=TriggerRequest()),
     settings: Settings = Depends(get_settings),
 ):
@@ -46,7 +44,7 @@ async def trigger_prediction(
     Supports rainfall value overrides so you can demo different risk scenarios.
     Set dry_run=true to run the full pipeline without dispatching real SMS.
     """
-    pipeline = get_pipeline()
+    pipeline = get_pipeline(request)
 
     if body.override_daily_mm is not None or body.override_antecedent_5day_mm is not None:
         # Inject synthetic rainfall for demo purposes
@@ -88,22 +86,22 @@ async def trigger_prediction(
         except Exception as e:
             import logging
             logging.getLogger(__name__).error("Background pipeline error: %s", e)
-            pipeline.running = False
 
     asyncio.create_task(_run_bg())
     return {"status": "started", "message": "Pipeline started in background."}
 
 
 @router.get("/trigger/stream")
-async def trigger_stream():
+async def trigger_stream(request: Request):
     """
     SSE endpoint — runs the pipeline and streams live log lines to the browser.
     The frontend connects with EventSource and renders each line as it arrives.
-    Concurrent runs are rejected with a 409 so the client shows an error instead
-    of silently starting a second pipeline on top of the first.
+    Concurrent runs are rejected so the client shows an error instead of
+    silently starting a second pipeline on top of the first — sharing the
+    same pipeline.running guard as POST /trigger and the scheduled job.
     """
-    global _running
-    if _running:
+    pipeline = get_pipeline(request)
+    if pipeline.running:
         async def _busy():
             yield f'data: {json.dumps({"type": "error", "message": "Pipeline already running — wait for it to finish."})}\n\n'
         return StreamingResponse(_busy(), media_type="text/event-stream",
@@ -115,16 +113,11 @@ async def trigger_stream():
         await queue.put({"type": "log", "message": msg})
 
     async def run():
-        global _running
-        _running = True
         try:
-            pipeline = get_pipeline()
             result = await pipeline.run_daily(log_fn=log_fn)
             await queue.put({"type": "done", "result": result})
         except Exception as e:
             await queue.put({"type": "error", "message": str(e)})
-        finally:
-            _running = False
 
     asyncio.create_task(run())
 

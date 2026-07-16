@@ -8,7 +8,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"
@@ -34,6 +36,9 @@ class Settings(BaseSettings):
 
     # OpenTopography
     opentopo_api_key: str = ""
+
+    # Gemini (help chat — optional, falls back to rule-based answers if unset)
+    gemini_api_key: str = ""
 
     # GEE
     gee_service_account: str = ""

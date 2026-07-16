@@ -1,0 +1,6 @@
+# One-time data setup only (scripts/setup_db.py: dem, units, ndvi).
+# Not installed on Render — the deployed API never imports these.
+# Install on top of backend/requirements.txt in the same venv:
+#   pip install -r backend/requirements.txt -r scripts/requirements-setup.txt
+pysheds>=0.3.5
+earthengine-api>=0.1.400

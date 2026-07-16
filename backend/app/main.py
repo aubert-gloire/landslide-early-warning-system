@@ -21,6 +21,7 @@ from .database import close_client, ensure_indexes
 from .routes.alerts import router as alerts_router
 from .routes.auth import router as auth_router
 from .routes.districts import router as districts_router
+from .routes.help_chat import router as help_chat_router
 from .routes.pipeline_runs import router as pipeline_runs_router
 from .routes.predict import router as predict_router
 from .routes.risk_map import router as risk_map_router
@@ -34,6 +35,11 @@ async def lifespan(app: FastAPI):
     # Startup
     await ensure_indexes()
     pipeline = DataPipeline()
+    # Shared across the scheduler and every /api/trigger* route via app.state,
+    # so pipeline.running is a single authoritative guard against a scheduled
+    # run and a manual trigger executing concurrently (each used to get its
+    # own DataPipeline instance with its own independent running flag).
+    app.state.pipeline = pipeline
     setup_scheduler(pipeline)
     scheduler.start()
     # Pre-load model in a thread at startup — joblib.load() is synchronous and
@@ -75,6 +81,7 @@ app.include_router(districts_router, prefix="/api")
 app.include_router(trigger_router, prefix="/api")
 app.include_router(predict_router, prefix="/api")
 app.include_router(pipeline_runs_router, prefix="/api")
+app.include_router(help_chat_router, prefix="/api")
 
 
 @app.get("/health")

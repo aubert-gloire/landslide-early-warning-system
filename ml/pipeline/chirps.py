@@ -14,6 +14,7 @@ from __future__ import annotations
 import gzip
 import io
 import logging
+import shutil
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -64,8 +65,10 @@ class CHIRPSDownloader:
             return None
 
         try:
+            # Stream the decompression to disk in chunks instead of gz.read(),
+            # which would materialize the entire decompressed file in memory.
             with gzip.open(compressed) as gz, open(out_path, "wb") as f:
-                f.write(gz.read())
+                shutil.copyfileobj(gz, f)
         except Exception as e:
             logger.warning("CHIRPS decompress failed for %s: %s", d, e)
             out_path.unlink(missing_ok=True)

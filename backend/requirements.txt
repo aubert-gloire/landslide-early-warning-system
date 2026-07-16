@@ -28,8 +28,12 @@ pyproj>=3.6.0
 rasterio>=1.3.0
 h5py>=3.10.0
 
-# Data pipeline
+# Data pipeline (daily/live path only — GPM IMERG + CHIRPS rainfall)
 requests>=2.31.0
-pysheds>=0.3.5
-earthengine-api>=0.1.400
 pymongo>=4.6.0
+
+# NOTE: pysheds and earthengine-api are intentionally NOT installed here.
+# They're only used by one-time setup scripts (scripts/setup_db.py — DEM,
+# slope units, NDVI), never by the deployed API or daily pipeline. Keeping
+# them out of this file reduces the Render web service's memory footprint
+# on a resource-constrained plan. See scripts/requirements-setup.txt.

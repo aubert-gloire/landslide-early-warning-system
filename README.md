@@ -206,6 +206,10 @@ cd backend
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+
+# Also needed for Step 3's one-time setup scripts (dem/units/ndvi) —
+# NOT installed on Render, since the deployed API never imports these:
+pip install -r ../scripts/requirements-setup.txt
 ```
 
 ### Step 3 — One-time data pipeline (run once to populate MongoDB)

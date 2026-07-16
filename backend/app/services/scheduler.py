@@ -1,10 +1,15 @@
 """
-APScheduler setup — daily pipeline job at 06:00 Africa/Kigali (UTC+2 = 04:00 UTC).
+APScheduler setup — daily pipeline fallback job at 16:00 UTC (18:00 Africa/Kigali).
 
-NOTE: On Render free tier, the process sleeps after 15 min of inactivity.
-The GitHub Actions workflow (.github/workflows/daily_pipeline.yml) calls
-POST /api/trigger as the primary scheduler, making this APScheduler a
-fallback for local/self-hosted deployments only.
+The GitHub Actions workflow (.github/workflows/daily_pipeline.yml) is the
+primary scheduler, firing at 15:00 UTC — after GPM IMERG's ~14h latency
+window so rainfall data is actually available (see that file's comment for
+the full reasoning). This job fires an hour later as a backup in case the
+GitHub Actions run failed to fire; pipeline.running (shared via
+app.state.pipeline) prevents the two from ever running concurrently.
+
+NOTE: Render's "starter" plan does not sleep on inactivity, so on Render
+this job genuinely runs daily alongside GitHub Actions, not just locally.
 """
 
 import logging
@@ -26,6 +31,6 @@ def setup_scheduler(pipeline):
         except Exception as e:
             logger.error("Daily pipeline failed: %s", e, exc_info=True)
 
-    # 04:00 UTC = 06:00 Africa/Kigali
-    scheduler.add_job(_job, CronTrigger(hour=4, minute=0), id="daily_pipeline", replace_existing=True)
-    logger.info("Daily pipeline scheduled at 04:00 UTC (06:00 Kigali)")
+    # 16:00 UTC = 18:00 Africa/Kigali — one hour after the GitHub Actions run
+    scheduler.add_job(_job, CronTrigger(hour=16, minute=0), id="daily_pipeline", replace_existing=True)
+    logger.info("Daily pipeline fallback scheduled at 16:00 UTC (18:00 Kigali)")

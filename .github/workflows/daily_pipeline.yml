@@ -2,8 +2,14 @@ name: Daily Landslide Pipeline
 
 on:
   schedule:
-    # 08:00 UTC = 10:00 Africa/Kigali (CHIRPS data published by ~07:00 UTC)
-    - cron: "0 8 * * *"
+    # 15:00 UTC = 17:00 Africa/Kigali. GPM IMERG Late Daily (the primary
+    # rainfall source) has ~14h latency — yesterday's data isn't published
+    # until ~14:00 UTC (see README "Rainfall source latency"). The previous
+    # 08:00 UTC schedule fired ~6h before IMERG was ready, and its fallback
+    # (CHIRPS Preliminary) has an unrelated ~4-day lag so it can never serve
+    # "yesterday" either — both sources were routinely unavailable at
+    # trigger time, silently degrading every run to terrain-only signal.
+    - cron: "0 15 * * *"
   workflow_dispatch:  # allow manual trigger from GitHub UI
 
 jobs:

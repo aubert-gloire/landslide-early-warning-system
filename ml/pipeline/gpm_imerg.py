@@ -27,6 +27,12 @@ _SHORT_NAME  = "GPM_3IMERGDL"
 _VERSION     = "07"
 _FILL_VALUES = {-9999.9, -9999.0, 29999.99}  # IMERG sentinel values
 
+# Northern Province Rwanda bounding box, with margin — used to window the
+# HDF5 read to a tiny sub-array instead of materializing IMERG's full global
+# 3600x1800 grid (which costs 50MB+ on a memory-constrained deployment).
+_NP_LAT_MIN, _NP_LAT_MAX = -2.2, -1.0
+_NP_LON_MIN, _NP_LON_MAX = 29.0, 30.4
+
 
 class GPMIMERGDownloader:
     """
@@ -167,14 +173,29 @@ class GPMIMERGDownloader:
                 if precip_var is None:
                     logger.error("IMERG: no precipitation variable in %s. Keys: %s", hdf_path.name, root_keys)
                     return None
-                raw  = f[precip_var][:]
-                lats = f["lat"][:]
-                lons = f["lon"][:]
+
+                # Load only the small 1-D coordinate arrays first, then window
+                # the read to the Northern Province bbox — the full grid is
+                # never pulled into memory.
+                full_lats = f["lat"][:]
+                full_lons = f["lon"][:]
+                lat_idx = np.where((full_lats >= _NP_LAT_MIN) & (full_lats <= _NP_LAT_MAX))[0]
+                lon_idx = np.where((full_lons >= _NP_LON_MIN) & (full_lons <= _NP_LON_MAX))[0]
+                if len(lat_idx) == 0 or len(lon_idx) == 0:
+                    logger.error("IMERG: Northern Province bbox not found in %s coordinate grid", hdf_path.name)
+                    return None
+                lat_lo, lat_hi = int(lat_idx.min()), int(lat_idx.max()) + 1
+                lon_lo, lon_hi = int(lon_idx.min()), int(lon_idx.max()) + 1
+
+                dset = f[precip_var]
+                raw = dset[:, lon_lo:lon_hi, lat_lo:lat_hi] if dset.ndim == 3 else dset[lon_lo:lon_hi, lat_lo:lat_hi]
+                lats = full_lats[lat_lo:lat_hi]
+                lons = full_lons[lon_lo:lon_hi]
         except Exception as exc:
             logger.error("IMERG nc4 read failed (%s): %s", hdf_path.name, exc)
             return None
 
-        # shape (1, 3600, 1800) -> [time, lon, lat]
+        # shape (1, lon_window, lat_window) -> [time, lon, lat]
         precip = np.array(raw[0] if raw.ndim == 3 else raw, dtype=float)
         precip[precip < 0] = 0.0  # fill values (-9999 etc) -> 0
 
