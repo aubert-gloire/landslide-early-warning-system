@@ -49,6 +49,10 @@ async def _get_districts_inner():
 
     latest_pred = await db.predictions.find_one(sort=[("date", -1)])
     latest_date = _safe_str(latest_pred["date"]) if latest_pred else None
+    # rainfall_available is stamped identically onto every prediction doc from
+    # a given run (see pipeline.py _run_daily_impl) — one representative doc
+    # tells us the whole assessment's rainfall status.
+    rainfall_available = latest_pred.get("rainfall_available") if latest_pred else None
 
     summaries = []
     for district in TARGET_DISTRICTS:
@@ -127,4 +131,4 @@ async def _get_districts_inner():
             "top_features":            list(top_features),
         })
 
-    return {"districts": summaries}
+    return {"districts": summaries, "assessment_date": latest_date, "rainfall_available": rainfall_available}

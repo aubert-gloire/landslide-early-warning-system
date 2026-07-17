@@ -98,6 +98,7 @@ export default function Dashboard({ onRunPipeline, onNavigate }) {
   const districts = distData?.districts ?? [];
   const alerts    = alertData?.alerts   ?? [];
   const stats     = statsData ?? {};
+  const rainfallAvailable = distData?.rainfall_available;
 
   const alerting = districts.filter(d => d.alert_level === "EMERGENCY" || d.alert_level === "WARNING");
   const latestDate = districts[0]?.last_update;
@@ -109,14 +110,22 @@ export default function Dashboard({ onRunPipeline, onNavigate }) {
     subline  = "";
   } else if (alerting.length === 0) {
     headline = "All districts within safe range this assessment.";
-    subline  = "No slope units have crossed the alert threshold. Continue monitoring antecedent rainfall conditions.";
+    subline  = rainfallAvailable === false
+      ? "No rainfall data was captured for this assessment — weather looks clear, and scoring fell back to terrain signal only. Antecedent rainfall could not be factored in."
+      : "No slope units have crossed the alert threshold. Continue monitoring antecedent rainfall conditions.";
   } else if (alerting.length === 1) {
     headline = `${alerting[0].district} is crossing the alert threshold.`;
     subline  = `${alerting[0].district} has exceeded ${Math.round(alerting[0].highest_risk_probability * 100)}% predicted risk. Five-day antecedent rainfall is the primary driver. SMS alerts have been dispatched to district officers.`;
+    if (rainfallAvailable === false) {
+      subline += " NOTE: rainfall data was unavailable for this run — this assessment is based on terrain signal only.";
+    }
   } else {
     const names = alerting.map(d => d.district).join(" and ");
     headline = `${names} are crossing the alert threshold.`;
     subline  = `${alerting.length} districts have exceeded 80% predicted risk following antecedent rainfall accumulation — the strongest signal in this model. SMS alerts have been dispatched to district officers.`;
+    if (rainfallAvailable === false) {
+      subline += " NOTE: rainfall data was unavailable for this run — this assessment is based on terrain signal only.";
+    }
   }
 
   // Top features from highest-risk district
@@ -152,6 +161,13 @@ export default function Dashboard({ onRunPipeline, onNavigate }) {
             ? `Assessment date — ${new Date(latestDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`
             : "Northern Province Landslide Watch"
           }
+          {rainfallAvailable === false && (
+            <span style={{
+              fontSize: 10, letterSpacing: "0.05em", padding: "2px 8px", borderRadius: 999,
+              background: "rgba(201,154,62,0.12)", border: "1px solid rgba(201,154,62,0.35)",
+              color: "var(--amber-text)",
+            }}>TERRAIN-ONLY — NO RAINFALL DATA</span>
+          )}
         </p>
         <h2 style={{
           fontFamily: "'Space Mono', monospace", fontWeight: 700,

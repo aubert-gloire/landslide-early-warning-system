@@ -17,11 +17,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger prediction pipeline
+        # POST /api/trigger returns immediately ({"status": "started"}) — it
+        # only kicks the pipeline off in the background on Render, it does
+        # NOT mean the run succeeded. -f makes curl itself fail the step on
+        # a non-2xx response instead of silently continuing.
         run: |
+          echo "TRIGGER_TIME=$(date -u +%Y-%m-%dT%H:%M:%S)" >> "$GITHUB_ENV"
           curl -X POST "${{ secrets.API_BASE_URL }}/api/trigger" \
             -H "Content-Type: application/json" \
             -d '{"dry_run": false}' \
-            --max-time 180 \
-            -w "\nHTTP %{http_code}" \
-            -o /tmp/response.txt || true
-          cat /tmp/response.txt || echo "(no response body)"
+            --max-time 30 -f \
+            -w "\nHTTP %{http_code}\n"
+
+      - name: Wait for a completed pipeline run to actually land in MongoDB
+        # A 200 from /api/trigger only proves the request was accepted, not
+        # that CHIRPS/IMERG fetch, inference, and the Mongo write succeeded —
+        # those happen in a background task whose exceptions never reach this
+        # HTTP response. The only trustworthy signal is a new row in
+        # pipeline_runs (written as the very last step of a successful run),
+        # so poll for it and fail the job if it never shows up.
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          for i in $(seq 1 24); do
+            sleep 15
+            RESP=$(curl -sf --max-time 20 "${{ secrets.API_BASE_URL }}/api/pipeline-runs?limit=1") || continue
+            RUN_DATE=$(echo "$RESP" | jq -r '.runs[0].run_date // empty')
+            RUN_AT=$(echo "$RESP" | jq -r '.runs[0].run_at // empty')
+            if [ "$RUN_DATE" = "$TODAY" ] && [ -n "$RUN_AT" ] && [ "$RUN_AT" \> "$TRIGGER_TIME" ]; then
+              echo "Confirmed: pipeline_runs has a real completed run for $TODAY (run_at=$RUN_AT)."
+              exit 0
+            fi
+          done
+          echo "::error::No completed pipeline run for $TODAY appeared in MongoDB within 6 minutes of triggering. The trigger call may have succeeded while the background run itself failed — check Render logs."
+          exit 1
