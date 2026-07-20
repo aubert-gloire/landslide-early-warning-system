@@ -167,6 +167,24 @@ class DataPipeline:
         run_date = date.today()
         db = get_db()
 
+        # The GitHub Actions cron (15:00 UTC) and the in-process fallback
+        # (16:00 UTC) are only an hour apart so the fallback only fires if
+        # the primary genuinely failed — but GitHub's scheduled-workflow
+        # delivery is best-effort and has been observed landing 1h-1h20min
+        # late, which collapses that gap and lets both fire for real within
+        # seconds of each other. pipeline.running only blocks true
+        # concurrency, not two triggers landing sequentially, so it doesn't
+        # catch this. Checking for today's date closes the gap regardless
+        # of why a second trigger shows up.
+        existing = await db.pipeline_runs.find_one({"run_date": run_date.isoformat()})
+        if existing:
+            await log(
+                f"Skipping — a run for {run_date.isoformat()} already completed at "
+                f"{existing.get('run_at')} (units={existing.get('units_processed')}, "
+                f"alerts={existing.get('alerts_triggered')}). Not re-scoring or re-alerting today."
+            )
+            return {"skipped": True, "reason": "already_ran_today", "existing_run_at": existing.get("run_at")}
+
         await log("Loading XGBoost model…")
         model = self._get_model()
         await log(f"Model ready — alert threshold: {model.production_threshold}")
