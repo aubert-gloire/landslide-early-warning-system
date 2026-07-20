@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApi } from "../hooks/useApi";
+import SeverityBadge from "./SeverityBadge";
 
 function FeedbackStats() {
   const { data } = useApi("/api/alerts/stats");
@@ -26,18 +27,6 @@ function FeedbackStats() {
   );
 }
 
-const STATUS_COLORS = {
-  sent:      { bg: "rgba(116,147,106,0.12)", text: "var(--moss-text)" },
-  delivered: { bg: "rgba(116,147,106,0.20)", text: "var(--moss-text)" },
-  pending:   { bg: "var(--panel-2)",          text: "var(--chalk-dim)" },
-  failed:    { bg: "rgba(194,75,58,0.15)",   text: "var(--ember-text)" },
-};
-
-const FEEDBACK_COLORS = {
-  CONFIRMED: { bg: "rgba(108,154,181,0.15)", text: "var(--storm-text)" },
-  DENIED:    { bg: "rgba(194,75,58,0.12)",   text: "var(--ember-text)" },
-};
-
 function formatDate(ts) {
   if (!ts) return "—";
   return new Date(ts).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
@@ -53,10 +42,6 @@ const styles = {
   table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
   th: { textAlign: "left", padding: "8px 12px", color: "var(--chalk-dim)", borderBottom: "1px solid var(--line)", whiteSpace: "nowrap" },
   td: { padding: "10px 12px", borderBottom: "1px solid var(--line)", verticalAlign: "top" },
-  badge: (style) => ({
-    display: "inline-block", padding: "2px 8px", borderRadius: 12,
-    fontSize: 11, fontWeight: 600, background: style.bg, color: style.text,
-  }),
   empty: { color: "var(--chalk-dim)", padding: "32px 0", textAlign: "center" },
   pagination: { display: "flex", gap: 8, marginTop: 14, alignItems: "center" },
   btn: {
@@ -114,8 +99,6 @@ export default function AlertTable() {
                 No alerts found{district ? ` for ${district}` : ""} — alerts are dispatched when a slope unit exceeds the production risk threshold
               </td></tr>
             ) : alerts.map((a) => {
-              const statusStyle = STATUS_COLORS[a.delivery_status] || STATUS_COLORS.pending;
-              const feedbackStyle = a.feedback ? FEEDBACK_COLORS[a.feedback] : null;
               const riskPct = a.risk_probability != null ? Math.round(a.risk_probability * 100) : null;
               return (
                 <tr key={a.alert_id}>
@@ -125,15 +108,15 @@ export default function AlertTable() {
                   <td style={styles.td}>{riskPct != null ? `${riskPct}%` : "—"}</td>
                   <td style={styles.td}>
                     {a.rainfall_available === false
-                      ? <span style={styles.badge({ bg: "rgba(201,154,62,0.12)", text: "var(--amber-text)" })}>TERRAIN-ONLY</span>
+                      ? <SeverityBadge level="TERRAIN_ONLY" label="TERRAIN-ONLY" />
                       : <span style={{ color: "var(--chalk-dim)", fontSize: 11 }}>—</span>}
                   </td>
                   <td style={styles.td}>
-                    <span style={styles.badge(statusStyle)}>{a.delivery_status}</span>
+                    <SeverityBadge level={(a.delivery_status || "pending").toUpperCase()} label={a.delivery_status || "pending"} />
                   </td>
                   <td style={styles.td}>
-                    {feedbackStyle
-                      ? <span style={styles.badge(feedbackStyle)}>{a.feedback}</span>
+                    {a.feedback
+                      ? <SeverityBadge level={a.feedback} label={a.feedback} />
                       : <span style={{ color: "var(--chalk-dim)" }}>Awaiting reply</span>
                     }
                   </td>

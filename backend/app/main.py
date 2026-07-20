@@ -26,6 +26,7 @@ from .routes.pipeline_runs import router as pipeline_runs_router
 from .routes.predict import router as predict_router
 from .routes.risk_map import router as risk_map_router
 from .routes.trigger import router as trigger_router
+from .routes.weather import router as weather_router
 from .services.pipeline import DataPipeline
 from .services.scheduler import scheduler, setup_scheduler
 
@@ -82,6 +83,7 @@ app.include_router(trigger_router, prefix="/api")
 app.include_router(predict_router, prefix="/api")
 app.include_router(pipeline_runs_router, prefix="/api")
 app.include_router(help_chat_router, prefix="/api")
+app.include_router(weather_router, prefix="/api")
 
 
 @app.get("/health")

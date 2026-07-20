@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -55,7 +56,12 @@ async def get_risk_map(run_date: date | None = Query(default=None)):
         return JSONResponse({"type": "FeatureCollection", "features": []})
 
     unit_ids = [p["slope_unit_id"] for p in predictions]
-    units = await db.slope_units.find({"unit_id": {"$in": unit_ids}}).to_list(length=10000)
+    # Independent of each other — run concurrently instead of two sequential
+    # round trips to Atlas.
+    units, latest_rain = await asyncio.gather(
+        db.slope_units.find({"unit_id": {"$in": unit_ids}}).to_list(length=10000),
+        db.rainfall_records.find_one({"daily_mm": {"$gt": 0}}, sort=[("date", -1)]),
+    )
     unit_map = {u["unit_id"]: u for u in units}
 
     features = []
@@ -85,10 +91,7 @@ async def get_risk_map(run_date: date | None = Query(default=None)):
             },
         })
 
-    # Expose the latest rainfall record date so the frontend can show the data lag
-    latest_rain = await db.rainfall_records.find_one(
-        {"daily_mm": {"$gt": 0}}, sort=[("date", -1)]
-    )
+    # Latest rainfall record date, fetched above — lets the frontend show the data lag
     data_date = latest_rain["date"] if latest_rain else str(run_date)
 
     return JSONResponse({

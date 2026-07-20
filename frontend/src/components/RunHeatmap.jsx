@@ -1,6 +1,6 @@
 import { useApi } from "../hooks/useApi";
 
-const WEEKS = 14; // ~98 days, GitHub-contributions style
+const WEEKS = 14; // ~98 days
 const DAYS = WEEKS * 7;
 
 function isoDate(d) {
@@ -25,6 +25,27 @@ function cellTitle(dateStr, run) {
   return parts.join(" · ");
 }
 
+const LEGEND_STYLE = {
+  wrap: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 },
+  count: { fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700 },
+  label: { fontSize: 10.5, color: "var(--chalk-dim)", display: "flex", alignItems: "center", gap: 5 },
+};
+
+function LegendStat({ count, dotColor, label, dotOutline }) {
+  return (
+    <div style={LEGEND_STYLE.wrap}>
+      <span style={LEGEND_STYLE.count}>{count}</span>
+      <span style={LEGEND_STYLE.label}>
+        <span style={{
+          width: 8, height: 8, borderRadius: "50%", background: dotColor, display: "inline-block",
+          border: dotOutline ? "1px solid var(--line-strong)" : "none",
+        }} />
+        {label}
+      </span>
+    </div>
+  );
+}
+
 export default function RunHeatmap({ refreshKey }) {
   const { data, loading } = useApi(`/api/pipeline-runs?limit=${DAYS}`, [refreshKey]);
   const runs = data?.runs || [];
@@ -46,35 +67,38 @@ export default function RunHeatmap({ refreshKey }) {
   for (let i = 0; i < padded.length; i += 7) weeks.push(padded.slice(i, i + 7));
 
   const ranCount = runs.length;
+  const rainfallOkCount = runs.filter((r) => r.rainfall_available !== false).length;
   const terrainOnlyCount = runs.filter((r) => r.rainfall_available === false).length;
+  const noRunCount = DAYS - ranCount;
+  const coveragePct = Math.round((ranCount / DAYS) * 1000) / 10;
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-        <span style={{ fontSize: 12, color: "var(--chalk-dim)" }}>
-          {loading ? "Loading run history…" : `${ranCount} runs in the last ${WEEKS} weeks${terrainOnlyCount ? ` · ${terrainOnlyCount} on terrain-only data` : ""}`}
-        </span>
-        <div style={{ display: "flex", gap: 14, fontSize: 11, color: "var(--chalk-dim)" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--moss)", display: "inline-block" }} /> Ran, rainfall OK
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--amber)", display: "inline-block" }} /> Ran, terrain-only
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--panel-2)", border: "1px solid var(--line-strong)", display: "inline-block" }} /> No run
-          </span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, flexWrap: "wrap", gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: "var(--chalk-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+            Run coverage — last {WEEKS} weeks
+          </div>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 30, fontWeight: 700 }}>
+            {loading ? "…" : `${coveragePct}%`}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 22 }}>
+          <LegendStat count={rainfallOkCount} dotColor="var(--moss)" label="Rainfall OK" />
+          <LegendStat count={terrainOnlyCount} dotColor="var(--amber)" label="Terrain-only" />
+          <LegendStat count={noRunCount} dotColor="var(--panel-2)" dotOutline label="No run" />
         </div>
       </div>
-      <div style={{ display: "flex", gap: 3, overflowX: "auto", paddingBottom: 4 }}>
+
+      <div style={{ display: "flex", gap: 4, overflowX: "auto", paddingBottom: 4 }}>
         {weeks.map((week, wi) => (
-          <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {week.map((cell, di) => (
               <div
                 key={di}
                 title={cell ? cellTitle(cell.dateStr, cell.run) : ""}
                 style={{
-                  width: 12, height: 12, borderRadius: 2,
+                  width: 10, height: 10, borderRadius: "50%",
                   background: cell ? cellColor(cell.run) : "transparent",
                   border: cell && !cell.run ? "1px solid var(--line-strong)" : "none",
                   cursor: cell ? "default" : undefined,

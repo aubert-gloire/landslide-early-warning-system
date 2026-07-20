@@ -1,4 +1,6 @@
 import { useApi } from "../hooks/useApi";
+import SeverityBadge from "./SeverityBadge";
+import RangeSliderTile from "./RangeSliderTile";
 
 const DISTRICT_ACCENT = {
   Gakenke: { color: "var(--storm)",       text: "var(--storm-text)"  },
@@ -12,23 +14,6 @@ function riskColor(p) {
   if (p >= 0.80)  return "var(--ember-text)";
   if (p >= 0.40)  return "var(--amber-text)";
   return "var(--moss-text)";
-}
-
-function alertBadge(level) {
-  if (!level) return null;
-  const colors = {
-    EMERGENCY: { bg: "rgba(194,75,58,0.15)",  border: "rgba(194,75,58,0.4)",  text: "var(--ember-text)" },
-    WARNING:   { bg: "rgba(201,154,62,0.15)", border: "rgba(201,154,62,0.4)", text: "var(--amber-text)" },
-    WATCH:     { bg: "rgba(108,154,181,0.15)",border: "rgba(108,154,181,0.4)",text: "var(--storm-text)" },
-  };
-  const c = colors[level] || colors.WATCH;
-  return (
-    <span style={{
-      fontSize: 10, fontFamily: "'Space Mono', monospace", letterSpacing: "0.06em",
-      padding: "2px 8px", borderRadius: 999,
-      background: c.bg, border: `1px solid ${c.border}`, color: c.text,
-    }}>{level}</span>
-  );
 }
 
 function DialGauge({ prob, district, sub }) {
@@ -90,10 +75,20 @@ function RainGauge({ mm, label, maxMm = 200 }) {
   );
 }
 
+const WEATHER_ICONS = {
+  0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️",
+  45: "🌫️", 48: "🌫️",
+  51: "🌦️", 53: "🌦️", 55: "🌦️",
+  61: "🌧️", 63: "🌧️", 65: "🌧️",
+  80: "🌧️", 81: "🌧️", 82: "🌧️",
+  95: "⛈️", 96: "⛈️", 99: "⛈️",
+};
+
 export default function Dashboard({ onRunPipeline, onNavigate }) {
   const { data: distData, loading: dLoading } = useApi("/api/districts");
   const { data: alertData }                    = useApi("/api/alerts?limit=6");
   const { data: statsData }                    = useApi("/api/alerts/stats");
+  const { data: weatherData }                  = useApi("/api/weather");
 
   const districts = distData?.districts ?? [];
   const alerts    = alertData?.alerts   ?? [];
@@ -162,11 +157,7 @@ export default function Dashboard({ onRunPipeline, onNavigate }) {
             : "Northern Province Landslide Watch"
           }
           {rainfallAvailable === false && (
-            <span style={{
-              fontSize: 10, letterSpacing: "0.05em", padding: "2px 8px", borderRadius: 999,
-              background: "rgba(201,154,62,0.12)", border: "1px solid rgba(201,154,62,0.35)",
-              color: "var(--amber-text)",
-            }}>TERRAIN-ONLY — NO RAINFALL DATA</span>
+            <SeverityBadge level="TERRAIN_ONLY" label="TERRAIN-ONLY — NO RAINFALL DATA" />
           )}
         </p>
         <h2 style={{
@@ -247,12 +238,52 @@ export default function Dashboard({ onRunPipeline, onNavigate }) {
                   />
                   {d.alert_level && (
                     <div style={{ textAlign: "center", marginTop: 6 }}>
-                      {alertBadge(d.alert_level)}
+                      <SeverityBadge level={d.alert_level} />
                     </div>
                   )}
                 </div>
               ))
           }
+        </div>
+      </section>
+
+      {/* ── Live Conditions ── */}
+      <section style={{ marginBottom: 36 }}>
+        <p style={{
+          fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--chalk-dim)",
+          letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 4px",
+        }}>Live conditions right now</p>
+        <p style={{ fontSize: 11.5, color: "var(--chalk-dim)", margin: "0 0 16px" }}>
+          Today's actual weather, district by district.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+          {(() => {
+            const wDistricts = weatherData?.districts ?? {};
+            const wAvailable = weatherData?.available;
+            return ["Gakenke", "Burera", "Musanze", "Gicumbi"].map(name => {
+              const w = wDistricts[name];
+              const accent = DISTRICT_ACCENT[name]?.color ?? "var(--storm)";
+              return (
+                <div key={name}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: accent }}>{name}</span>
+                    {w && <span style={{ fontSize: 10, color: "var(--chalk-dim)" }}>{w.condition}</span>}
+                  </div>
+                  <RangeSliderTile
+                    icon={w ? (WEATHER_ICONS[w.weather_code] ?? "—") : (wAvailable === false ? "—" : "…")}
+                    label="Current temperature"
+                    value={w?.temperature_c}
+                    unit="°C"
+                    min={w?.temperature_min_c}
+                    max={w?.temperature_max_c}
+                    minLabel={w?.temperature_min_c != null ? `${Math.round(w.temperature_min_c)}°C low` : undefined}
+                    maxLabel={w?.temperature_max_c != null ? `${Math.round(w.temperature_max_c)}°C high` : undefined}
+                    color={accent}
+                  />
+                </div>
+              );
+            });
+          })()}
         </div>
       </section>
 
