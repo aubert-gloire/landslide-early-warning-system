@@ -72,6 +72,22 @@ class SlopeUnitGenerator:
         # Build GeoDataFrame
         gdf = gpd.GeoDataFrame(geometry=catchments, crs="EPSG:4326")
 
+        # The grid above is drawn from the DEM raster's rectangular bounding
+        # box with no awareness of the national border, so it always spills
+        # into DRC/Uganda at the edges. Clip against Rwanda's real boundary —
+        # drop cells that don't touch Rwanda at all, and trim the geometry of
+        # cells that straddle the border down to the Rwanda-contained part.
+        boundary_path = self.processed_dir / "gadm41_RWA_3.gpkg"
+        if boundary_path.exists():
+            boundary = gpd.read_file(boundary_path).dissolve().geometry.iloc[0]
+            gdf["geometry"] = gdf.geometry.intersection(boundary)
+            gdf = gdf[~gdf.geometry.is_empty].reset_index(drop=True)
+        else:
+            logger.warning(
+                "%s not found — slope units will NOT be clipped to Rwanda's border "
+                "and may extend into neighboring countries", boundary_path
+            )
+
         # Filter tiny slivers
         gdf = gdf[gdf.geometry.area > 0.0001].reset_index(drop=True)
 
