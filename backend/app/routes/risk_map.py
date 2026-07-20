@@ -88,6 +88,11 @@ async def get_risk_map(run_date: date | None = Query(default=None)):
                 "alert_triggered": pred["alert_triggered"],
                 "top_features": pred.get("top_features", []),
                 "date": pred["date"],
+                # Exact centroid, not just the polygon — a slope unit averages
+                # ~0.8km², so "which district/sector" alone still leaves an
+                # officer guessing where inside it the risk actually is.
+                "centroid_lat": unit.get("centroid_lat"),
+                "centroid_lon": unit.get("centroid_lon"),
             },
         })
 

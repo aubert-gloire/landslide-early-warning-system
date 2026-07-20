@@ -49,10 +49,16 @@ export default function RiskMap() {
       },
       onEachFeature: (f, lyr) => {
         const p = f.properties;
+        const hasCoords = p.centroid_lat != null && p.centroid_lon != null;
+        const lat = hasCoords ? p.centroid_lat.toFixed(5) : null;
+        const lon = hasCoords ? p.centroid_lon.toFixed(5) : null;
         lyr.bindPopup(
           `<strong>Unit ${p.unit_id}</strong> &middot; ${p.district}<br/>` +
           `Risk: ${(p.risk_probability * 100).toFixed(0)}%<br/>` +
-          (p.alert_triggered ? "<span style='color:#E2836F'>&#9888; SMS alert dispatched</span>" : "Below alert threshold")
+          (p.alert_triggered ? "<span style='color:#E2836F'>&#9888; SMS alert dispatched</span>" : "Below alert threshold") +
+          (hasCoords
+            ? `<br/><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" rel="noopener noreferrer">${lat}, ${lon}</a>`
+            : "")
         );
         lyr.on("mouseover", () => lyr.setStyle({ fillOpacity: 1, weight: 1.5 }));
         lyr.on("mouseout",  () => lyr.setStyle({ fillOpacity: 0.75, weight: 0.5 }));

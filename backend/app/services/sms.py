@@ -77,7 +77,11 @@ def build_alert_message(
     level, action = get_alert_level(risk_probability)
     driver = top_features[0][0].replace("_", " ") if top_features else ""
     location = f"{district}/{sector}" if sector else district
-    gps = f" {centroid_lat:.2f},{centroid_lon:.2f}" if centroid_lat is not None else ""
+    # .5f (~1m precision) — a slope unit averages ~0.8km², so the earlier
+    # .2f (~1.1km precision) put the GPS error on the same scale as the
+    # unit itself, giving officers a coordinate no more useful than the
+    # district/sector name already printed above it.
+    gps = f" {centroid_lat:.5f},{centroid_lon:.5f}" if centroid_lat is not None else ""
     note = "\nNOTE: rainfall data unavailable today, based on terrain only" if not rainfall_available else ""
     return (
         f"LSEWS {level} {location}{gps}\n"
