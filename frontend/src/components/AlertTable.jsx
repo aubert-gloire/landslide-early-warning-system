@@ -112,7 +112,21 @@ export default function AlertTable() {
                       : <span style={{ color: "var(--chalk-dim)", fontSize: 11 }}>—</span>}
                   </td>
                   <td style={styles.td}>
-                    <SeverityBadge level={(a.delivery_status || "pending").toUpperCase()} label={a.delivery_status || "pending"} />
+                    {a.provider_status && Object.keys(a.provider_status).length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {Object.entries(a.provider_status).map(([provider, rawStatus]) => {
+                          const error = a.provider_errors?.[provider];
+                          const level = error ? "FAILED" : "SENT";
+                          return (
+                            <span key={provider} title={error || rawStatus} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <SeverityBadge level={level} label={`${provider}: ${rawStatus}`} />
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <SeverityBadge level={(a.delivery_status || "pending").toUpperCase()} label={a.delivery_status || "pending"} />
+                    )}
                   </td>
                   <td style={styles.td}>
                     {a.feedback

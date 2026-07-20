@@ -11,6 +11,12 @@ class AlertRecord(BaseModel):
     message: str
     sent_at: datetime = Field(default_factory=datetime.utcnow)
     delivery_status: Literal["pending", "sent", "delivered", "failed"] = "pending"
+    # Per-provider raw status/error — e.g. {"telerivet": "queued"} /
+    # {"africastalking": "InvalidSenderId"}. delivery_status above is just
+    # "did at least one provider accept it"; these two show which provider
+    # and why, instead of collapsing everything into one "failed" badge.
+    provider_status: dict[str, str] = {}
+    provider_errors: dict[str, str] = {}
     # Denormalized from prediction for fast alert-history display
     district: str | None = None
     slope_unit_id: int | None = None

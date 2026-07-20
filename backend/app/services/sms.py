@@ -91,23 +91,30 @@ def build_alert_message(
     )
 
 
-async def _send_via_africastalking(phone: str, message: str) -> str:
-    """Send via Africa's Talking. Returns delivery status string."""
+async def _send_via_africastalking(phone: str, message: str) -> dict:
+    """Send via Africa's Talking. Returns {success, raw_status, error}."""
     settings = get_settings()
     sms = _init_at()
     raw_sender = (settings.at_sender_id or "").strip().strip('"').strip("'")
     sender = raw_sender if raw_sender else None
     response = sms.send(message, [phone], sender_id=sender)
     recipients = response.get("SMSMessageData", {}).get("Recipients", [])
-    status = recipients[0].get("status", "failed") if recipients else "failed"
-    return "sent" if "Success" in status else "failed"
+    if not recipients:
+        detail = response.get("SMSMessageData", {}).get("Message", "no recipients in response")
+        return {"success": False, "raw_status": "no_recipients", "error": detail}
+    status = recipients[0].get("status", "failed")
+    success = "Success" in status
+    return {"success": success, "raw_status": status, "error": None if success else status}
 
 
-async def _send_via_telerivet(phone: str, message: str) -> str:
+async def _send_via_telerivet(phone: str, message: str) -> dict:
     """Send via Telerivet REST API (routes through Android SIM if route_id set)."""
     settings = get_settings()
     if not settings.telerivet_api_key or not settings.telerivet_project_id:
-        raise ValueError("TELERIVET_API_KEY and TELERIVET_PROJECT_ID must be set")
+        return {
+            "success": False, "raw_status": "not_configured",
+            "error": "TELERIVET_API_KEY / TELERIVET_PROJECT_ID not set",
+        }
     url = f"https://api.telerivet.com/v1/projects/{settings.telerivet_project_id}/messages/send"
     payload: dict = {"to_number": phone, "content": message}
     if settings.telerivet_route_id:
@@ -118,17 +125,26 @@ async def _send_via_telerivet(phone: str, message: str) -> str:
             auth=(settings.telerivet_api_key, ""),
             json=payload,
         )
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        # Surface Telerivet's actual error body instead of raising a bare
+        # HTTPStatusError — a wrong project ID, an unverified/misconfigured
+        # route_id, or an out-of-credit account all return 4xx here, and the
+        # body is the only place that says which one.
+        return {"success": False, "raw_status": f"http_{resp.status_code}", "error": resp.text[:300]}
     data = resp.json()
-    status = data.get("status", "failed")
+    status = data.get("status", "unknown")
     logger.info("Telerivet response: id=%s status=%s route=%s", data.get("id"), status, settings.telerivet_route_id or "default")
-    return "sent" if status in ("queued", "sending", "sent", "delivered") else "failed"
+    # Telerivet's send response reflects acceptance into its outbound queue,
+    # not final delivery (that arrives later via webhook) — only treat its
+    # own explicit failure/cancellation statuses as a failure here.
+    success = status not in ("failed", "failed_queued", "not_delivered", "cancelled")
+    return {"success": success, "raw_status": status, "error": None if success else status}
 
 
-async def _dispatch_sms(phone: str, message: str) -> str:
+async def _dispatch_sms(phone: str, message: str) -> dict:
     """
     Fan out to all configured SMS providers in parallel.
-    Returns 'sent' if at least one provider succeeds, 'failed' if all fail.
+    Returns {"overall": "sent"|"failed", "providers": {name: raw_status}, "errors": {name: error}}.
     Configure via SMS_PROVIDER env var — comma-separated:
       "africastalking"            → AT only
       "telerivet"                 → Telerivet only
@@ -140,21 +156,23 @@ async def _dispatch_sms(phone: str, message: str) -> str:
     providers = [p.strip() for p in settings.sms_provider.lower().split(",") if p.strip()]
     logger.info("SMS dispatch via providers=%s to=%s", providers, phone)
 
-    async def try_provider(name: str) -> tuple[str, str]:
+    async def try_provider(name: str) -> tuple[str, dict]:
         try:
-            if name == "telerivet":
-                status = await _send_via_telerivet(phone, message)
-            else:
-                status = await _send_via_africastalking(phone, message)
-            logger.info("Provider %s → %s", name, status)
-            return name, status
+            result = (
+                await _send_via_telerivet(phone, message) if name == "telerivet"
+                else await _send_via_africastalking(phone, message)
+            )
+            logger.info("Provider %s → %s", name, result["raw_status"])
+            return name, result
         except Exception as exc:
             logger.error("Provider %s failed: %s", name, exc)
-            return name, "failed"
+            return name, {"success": False, "raw_status": "exception", "error": str(exc)}
 
     results = await _asyncio.gather(*[try_provider(p) for p in providers])
-    any_sent = any(status == "sent" for _, status in results)
-    return "sent" if any_sent else "failed"
+    provider_status = {name: r["raw_status"] for name, r in results}
+    provider_errors = {name: r["error"] for name, r in results if r.get("error")}
+    overall = "sent" if any(r["success"] for _, r in results) else "failed"
+    return {"overall": overall, "providers": provider_status, "errors": provider_errors}
 
 
 async def send_alert(
@@ -197,16 +215,23 @@ async def send_alert(
     await db.alert_records.insert_one(alert.model_dump())
 
     try:
-        delivery_status = await _dispatch_sms(phone, message)
+        dispatch = await _dispatch_sms(phone, message)
     except Exception as e:
         logger.error("SMS dispatch failed for %s: %s", phone, e)
-        delivery_status = "failed"
+        dispatch = {"overall": "failed", "providers": {}, "errors": {"dispatch": str(e)}}
 
     await db.alert_records.update_one(
         {"alert_id": alert_id},
-        {"$set": {"delivery_status": delivery_status}},
+        {"$set": {
+            "delivery_status": dispatch["overall"],
+            "provider_status": dispatch["providers"],
+            "provider_errors": dispatch["errors"],
+        }},
     )
-    logger.info("SMS %s → %s (status=%s)", alert_id, phone, delivery_status)
+    logger.info(
+        "SMS %s → %s (status=%s, providers=%s)",
+        alert_id, phone, dispatch["overall"], dispatch["providers"],
+    )
     return alert_id
 
 
