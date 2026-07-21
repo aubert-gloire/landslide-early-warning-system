@@ -61,8 +61,13 @@ class XGBModel:
         threshold_override: temporarily lower the alert threshold (e.g. after seismic event).
         """
         threshold = threshold_override if threshold_override is not None else self.production_threshold
-        available = [c for c in self.feature_cols if c in feature_df.columns]
-        X = feature_df[available].fillna(0).values
+        # reindex (not a plain column-intersection filter) — the fitted
+        # pipeline's SimpleImputer enforces a fixed n_features_in_, so a
+        # feature_df missing even one of self.feature_cols must still
+        # produce every column (as NaN, then 0 below), not a narrower
+        # matrix that sklearn will hard-reject.
+        available = list(self.feature_cols)
+        X = feature_df.reindex(columns=available).fillna(0).values
         probs  = self._model.predict_proba(X)[:, 1]
         alerts = probs >= threshold
 

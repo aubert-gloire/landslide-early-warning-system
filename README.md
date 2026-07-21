@@ -329,6 +329,30 @@ File: `.github/workflows/daily_pipeline.yml`
 
 ## Testing Results & Strategies
 
+### Strategy 0 — Automated Unit Tests
+
+`backend/tests/` — 35 automated `pytest` tests covering the three pieces of
+core logic most in need of regression protection: risk-threshold
+classification, the antecedent-rainfall rolling-window math, and the
+production XGBoost model's inference behaviour.
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+| File | Covers | What it caught |
+|---|---|---|
+| `test_predict_thresholds.py` | `_risk_level` / `_threshold_context` (`routes/predict.py`) | Boundary values at every risk tier; NDVI's inverted "lower = worse" threshold direction, the one feature that breaks the pattern the other five follow. |
+| `test_rainfall_windows.py` | `compute_antecedent_windows` (`ml/features/rainfall_windows.py`) | Rolling-sum correctness against hand-computed values; that antecedent windows don't leak across slope units; the intensity-ratio formula. |
+| `test_xgb_model.py` | `XGBModel.predict()` (`app/ml/xgb_model.py`) | Runs against the real trained artifact (not a mock) — reproduces both worked examples from Strategy 3 below, checks `threshold_override` actually changes the outcome, and checks monotonicity on the model's top feature. **Found and fixed a real bug**: `predict()` silently narrowed to whichever feature columns were present instead of padding missing ones, so any caller supplying fewer than all 12 trained columns crashed with a raw sklearn `ValueError` instead of degrading gracefully. No current call site was affected (all of them always supply the full 12), but it was a live landmine for the next one that doesn't. |
+
+The antecedent-rainfall window logic was previously duplicated inline in
+two branches of `DataPipeline._run_daily_impl` with no test coverage at
+all; it's now a single tested function (`compute_antecedent_windows`)
+used by both.
+
 ### Strategy 1 — Model Validation (Offline Cross-Validation)
 
 The XGBoost model was evaluated using 5-fold stratified cross-validation on the full historical dataset (2010–2024, 396 slope units × 14 years).

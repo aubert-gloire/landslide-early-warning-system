@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
+from ml.features.rainfall_windows import compute_antecedent_windows  # noqa: E402
+
 # Rwanda Northern Province centroid used for USGS earthquake proximity queries
 _NORTHERN_PROVINCE_LAT = -1.50
 _NORTHERN_PROVINCE_LON = 29.70
@@ -208,15 +210,7 @@ class DataPipeline:
                 for r in history_docs
             ])
             rainfall_df["date"] = pd.to_datetime(rainfall_df["date"])
-            rainfall_df = rainfall_df.sort_values(["unit_id", "date"])
-            for window, col in [(3, "antecedent_3day_mm"), (5, "antecedent_5day_mm"), (10, "antecedent_10day_mm")]:
-                rainfall_df[col] = (
-                    rainfall_df.groupby("unit_id")["daily_mm"]
-                    .transform(lambda s, w=window: s.rolling(w, min_periods=1).sum())
-                )
-            rainfall_df["rainfall_intensity_ratio"] = (
-                rainfall_df["daily_mm"] / (rainfall_df["antecedent_5day_mm"] + 1.0)
-            ).round(4)
+            rainfall_df = compute_antecedent_windows(rainfall_df)
             rainfall_df = rainfall_df[rainfall_df["date"] == pd.Timestamp(rainfall_date)].reset_index(drop=True)
         else:
             # Slow path: try GPM IMERG first (14h lag), fall back to CHIRPS (4-day lag)
@@ -270,15 +264,7 @@ class DataPipeline:
                 combined = pd.concat([recent, daily_df], ignore_index=True)
             else:
                 combined = daily_df
-            combined = combined.sort_values(["unit_id", "date"])
-            for window, col in [(3, "antecedent_3day_mm"), (5, "antecedent_5day_mm"), (10, "antecedent_10day_mm")]:
-                combined[col] = (
-                    combined.groupby("unit_id")["daily_mm"]
-                    .transform(lambda s, w=window: s.rolling(w, min_periods=1).sum())
-                )
-            combined["rainfall_intensity_ratio"] = (
-                combined["daily_mm"] / (combined["antecedent_5day_mm"] + 1.0)
-            ).round(4)
+            combined = compute_antecedent_windows(combined)
             rainfall_df = combined[combined["date"] == pd.Timestamp(yesterday)].reset_index(drop=True)
             # Only cache rows with a real value. Previously `row.get("daily_mm", 0) or 0`
             # looked like it defaulted missing rainfall to 0, but `NaN or 0` evaluates to

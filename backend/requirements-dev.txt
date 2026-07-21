@@ -1,0 +1,4 @@
+# Test-only dependencies — not installed on Render, mirrors the existing
+# split between requirements.txt (deployed API) and
+# scripts/requirements-setup.txt (one-time setup scripts).
+pytest>=8.0.0
