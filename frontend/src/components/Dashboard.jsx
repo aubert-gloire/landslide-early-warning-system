@@ -255,7 +255,7 @@ export default function Dashboard({ onRunPipeline, onNavigate }) {
           letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 4px",
         }}>Live conditions right now</p>
         <p style={{ fontSize: 11.5, color: "var(--chalk-dim)", margin: "0 0 16px" }}>
-          Today's actual weather, district by district.
+          At each district's slope-unit terrain (averaged) — not the town center, so it can read cooler/wetter than a town forecast.
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
           {(() => {
