@@ -59,7 +59,7 @@ export default function App() {
         padding: "0 28px",
       }}>
         <div style={{
-          maxWidth: 1120, margin: "0 auto",
+          maxWidth: 1600, margin: "0 auto",
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "18px 0", flexWrap: "wrap", gap: 12,
         }}>
@@ -130,7 +130,7 @@ export default function App() {
       </header>
 
       {/* Main */}
-      <main style={{ flex: 1, padding: "28px", maxWidth: 1120, margin: "0 auto", width: "100%" }}>
+      <main style={{ flex: 1, padding: "28px", maxWidth: 1600, margin: "0 auto", width: "100%" }}>
 
         {showLog && (
           <div style={{ marginBottom: 24 }}>
@@ -218,7 +218,7 @@ export default function App() {
       <footer style={{
         borderTop: "1px solid var(--line)", padding: "16px 28px",
         display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12,
-        maxWidth: 1120, margin: "0 auto", width: "100%",
+        maxWidth: 1600, margin: "0 auto", width: "100%",
       }}>
         <SeverityStrip refreshKey={dashboardKey} />
         <span style={{ fontSize: 11, color: "var(--chalk-dim)" }}>
