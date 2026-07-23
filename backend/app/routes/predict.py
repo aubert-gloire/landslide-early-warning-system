@@ -104,6 +104,32 @@ class PredictRequest(BaseModel):
         return self
 
 
+def _build_feature_vals(body: PredictRequest) -> dict:
+    """
+    Assemble the feature dict used for model inference from a request body,
+    auto-deriving rainfall_intensity_ratio when the caller didn't supply one.
+    Shared by predict_point and predict_and_alert — they both take the same
+    PredictRequest-shaped input and need the exact same feature assembly.
+    """
+    ratio = body.rainfall_intensity_ratio
+    if ratio is None:
+        ratio = round(body.daily_mm / (body.antecedent_5day_mm + 1.0), 4)
+    return {
+        "slope_angle":             body.slope_angle,
+        "aspect":                  body.aspect,
+        "twi":                     body.twi,
+        "drainage_density":        body.drainage_density,
+        "ndvi":                    body.ndvi,
+        "soil_class":              body.soil_class,
+        "landuse_class":           body.landuse_class,
+        "daily_mm":                body.daily_mm,
+        "antecedent_3day_mm":      body.antecedent_3day_mm,
+        "antecedent_5day_mm":      body.antecedent_5day_mm,
+        "antecedent_10day_mm":     body.antecedent_10day_mm,
+        "rainfall_intensity_ratio": ratio,
+    }
+
+
 def _risk_level(prob: float) -> str:
     if prob >= 0.80:
         return "critical"
@@ -221,27 +247,7 @@ async def predict_point(body: PredictRequest):
         )
 
     # Build feature row — use model's expected feature order
-    # Auto-derive optional features when not supplied
-    ant3  = body.antecedent_3day_mm
-    ant10 = body.antecedent_10day_mm
-    ratio = body.rainfall_intensity_ratio
-    if ratio is None:
-        ratio = round(body.daily_mm / (body.antecedent_5day_mm + 1.0), 4)
-
-    feature_vals = {
-        "slope_angle":             body.slope_angle,
-        "aspect":                  body.aspect,
-        "twi":                     body.twi,
-        "drainage_density":        body.drainage_density,
-        "ndvi":                    body.ndvi,
-        "soil_class":              body.soil_class,
-        "landuse_class":           body.landuse_class,
-        "daily_mm":                body.daily_mm,
-        "antecedent_3day_mm":      ant3,
-        "antecedent_5day_mm":      body.antecedent_5day_mm,
-        "antecedent_10day_mm":     ant10,
-        "rainfall_intensity_ratio": ratio,
-    }
+    feature_vals = _build_feature_vals(body)
 
     # Only use columns the model was trained on
     available = [c for c in model_wrapper.feature_cols if c in feature_vals]
@@ -402,20 +408,7 @@ async def predict_and_alert(body: ManualAlertRequest):
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="Model not loaded.")
 
-    ant3  = body.antecedent_3day_mm
-    ant10 = body.antecedent_10day_mm
-    ratio = body.rainfall_intensity_ratio
-    if ratio is None:
-        ratio = round(body.daily_mm / (body.antecedent_5day_mm + 1.0), 4)
-
-    feature_vals = {
-        "slope_angle": body.slope_angle, "aspect": body.aspect,
-        "twi": body.twi, "drainage_density": body.drainage_density,
-        "ndvi": body.ndvi, "soil_class": body.soil_class,
-        "landuse_class": body.landuse_class, "daily_mm": body.daily_mm,
-        "antecedent_3day_mm": ant3, "antecedent_5day_mm": body.antecedent_5day_mm,
-        "antecedent_10day_mm": ant10, "rainfall_intensity_ratio": ratio,
-    }
+    feature_vals = _build_feature_vals(body)
     available = [c for c in model_wrapper.feature_cols if c in feature_vals]
     feature_df = pd.DataFrame([{c: feature_vals[c] for c in available}])
     feature_df["unit_id"] = 0
