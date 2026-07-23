@@ -22,6 +22,20 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
+      - name: Get a guest auth token
+        # Every route this workflow calls (POST /api/trigger, GET
+        # /api/pipeline-runs) now requires a Bearer token, since the FR9 auth
+        # fix added backend-wide authorization. Guest login needs no
+        # credentials at all, so this just mints a fresh token for this run —
+        # no GitHub secret required for it.
+        run: |
+          TOKEN=$(curl -sf --max-time 20 -X POST "${{ secrets.API_BASE_URL }}/api/auth/guest" | jq -r '.token // empty')
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Could not obtain an auth token from /api/auth/guest."
+            exit 1
+          fi
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
       - name: Trigger prediction pipeline
         # POST /api/trigger returns immediately ({"status": "started"}) — it
         # only kicks the pipeline off in the background on Render, it does
@@ -30,6 +44,7 @@ jobs:
         run: |
           curl -X POST "${{ secrets.API_BASE_URL }}/api/trigger" \
             -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
             -d '{"dry_run": false}' \
             --max-time 30 -f \
             -w "\nHTTP %{http_code}\n"
@@ -58,7 +73,7 @@ jobs:
           TODAY=$(date -u +%Y-%m-%d)
           for i in $(seq 1 24); do
             sleep 15
-            RESP=$(curl -sf --max-time 20 "${{ secrets.API_BASE_URL }}/api/pipeline-runs?limit=1") || continue
+            RESP=$(curl -sf --max-time 20 -H "Authorization: Bearer $TOKEN" "${{ secrets.API_BASE_URL }}/api/pipeline-runs?limit=1") || continue
             RUN_DATE=$(echo "$RESP" | jq -r '.runs[0].run_date // empty')
             STATUS=$(echo "$RESP" | jq -r '.runs[0].status // empty')
             if [ "$RUN_DATE" = "$TODAY" ] && [ "$STATUS" = "completed" ]; then
