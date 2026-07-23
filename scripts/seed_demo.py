@@ -13,7 +13,7 @@ The demo flow then is:
   1. Open dashboard → see colored map, district cards, recent alerts
   2. Click "Run Pipeline" (POST /api/trigger with high rainfall override)
   3. Watch map update, alert count increase
-  4. Show SMS in Africa's Talking sandbox logs
+  4. Show SMS delivery in Telerivet's message log
 """
 
 import asyncio

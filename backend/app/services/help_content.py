@@ -65,8 +65,8 @@ QA: list[dict] = [
         "answer": (
             "SMS alerts fire automatically when a slope unit exceeds the risk threshold. Each message "
             "includes district, sector, risk level, GPS coordinates, the main driver, and reply "
-            "instructions (YES/NO to confirm or dispute). Alerts go through Africa's Talking and Telerivet "
-            "in parallel for delivery reliability on MTN Rwanda."
+            "instructions (YES/NO to confirm or dispute). Alerts go through Telerivet, routed through a real "
+            "Android SIM, for delivery reliability on MTN Rwanda."
         ),
     },
     {
@@ -106,7 +106,7 @@ QA: list[dict] = [
         "answer": (
             "Rainfall: GPM IMERG (primary, ~14h lag) with CHIRPS as fallback. Terrain: elevation-derived "
             "slope/aspect/wetness index. Vegetation: Sentinel-2 NDVI. Soil: ISRIC SoilGrids. Seismic: USGS "
-            "Earthquake Hazards API. SMS: Africa's Talking + Telerivet."
+            "Earthquake Hazards API. SMS: Telerivet."
         ),
     },
     {

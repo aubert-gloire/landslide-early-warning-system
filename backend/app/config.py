@@ -16,15 +16,8 @@ class Settings(BaseSettings):
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "landslide_ews"
 
-    # SMS provider: "telerivet" (default) or "africastalking" or "africastalking,telerivet"
-    sms_provider: str = "telerivet"
-
-    # Africa's Talking
-    at_username: str = "sandbox"
-    at_api_key: str = ""
-    at_sender_id: str = "LSEWS"
-
-    # Telerivet
+    # Telerivet — the only SMS provider (Africa's Talking evaluated and
+    # removed 2026-07-23; see docs/africastalking-investigation.md)
     telerivet_api_key: str = ""
     telerivet_project_id: str = ""
     telerivet_route_id: str = ""   # Android SIM route ID — leave blank to use Telerivet default

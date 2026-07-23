@@ -1,9 +1,20 @@
 """
-Africa's Talking SMS integration.
-Sandbox mode during development; set AT_USERNAME to live username for production.
+Telerivet SMS integration (routes through a real Android SIM via route_id).
 
-Inbound SMS webhook: Africa's Talking posts to /api/sms/callback when an officer replies.
-Reply format expected from officers: "YES <unit_id>" or "NO <unit_id>"
+Inbound SMS webhook: Telerivet posts to /api/sms/telerivet-callback when an
+officer replies. Reply format expected from officers: "YES <unit_id>" or "NO <unit_id>"
+
+Africa's Talking was evaluated and removed 2026-07-23 — see
+docs/africastalking-investigation.md for the full writeup. Summary: AT's
+shared/anonymous sender pool (the only option without a paid, telco-approved
+alphanumeric sender ID) is unreliable on MTN Rwanda. Tested across 2 AT
+accounts, 3 phone numbers, and both short and full alert-format messages —
+consistently "Rejected" on AT's own delivery log, including the exact same
+message text (byte-for-byte) that had succeeded via the same account and
+number four months earlier. Content, account, and destination were all
+ruled out as the cause; the most likely explanation is that MTN/AT's
+shared-pool filtering rules tightened between then and now — a carrier-side
+change outside this project's control.
 """
 
 from __future__ import annotations
@@ -11,41 +22,12 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
-import africastalking
 import httpx
 
 from ..config import get_settings
 from ..database import get_db
 
 logger = logging.getLogger(__name__)
-
-
-def _patch_requests_ssl():
-    """
-    Local antivirus/proxy intercepts TLS and breaks verify=True for AT sandbox.
-    Patch requests.Session so all AT SDK calls use verify=False in dev.
-    Render (production) has clean SSL — this function is never called there.
-    """
-    import requests
-    import urllib3
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    _orig = requests.Session.request
-
-    def _no_verify(self, method, url, **kwargs):
-        kwargs.setdefault("verify", False)
-        return _orig(self, method, url, **kwargs)
-
-    requests.Session.request = _no_verify
-
-
-def _init_at():
-    settings = get_settings()
-    username = settings.at_username.strip()
-    if not settings.is_production:
-        _patch_requests_ssl()
-    africastalking.initialize(username, settings.at_api_key)
-    logger.info("AT initialised — username=%s production=%s", username, settings.is_production)
-    return africastalking.SMS
 
 
 ALERT_LEVELS = {
@@ -91,22 +73,6 @@ def build_alert_message(
     )
 
 
-async def _send_via_africastalking(phone: str, message: str) -> dict:
-    """Send via Africa's Talking. Returns {success, raw_status, error}."""
-    settings = get_settings()
-    sms = _init_at()
-    raw_sender = (settings.at_sender_id or "").strip().strip('"').strip("'")
-    sender = raw_sender if raw_sender else None
-    response = sms.send(message, [phone], sender_id=sender)
-    recipients = response.get("SMSMessageData", {}).get("Recipients", [])
-    if not recipients:
-        detail = response.get("SMSMessageData", {}).get("Message", "no recipients in response")
-        return {"success": False, "raw_status": "no_recipients", "error": detail}
-    status = recipients[0].get("status", "failed")
-    success = "Success" in status
-    return {"success": success, "raw_status": status, "error": None if success else status}
-
-
 async def _send_via_telerivet(phone: str, message: str) -> dict:
     """Send via Telerivet REST API (routes through Android SIM if route_id set)."""
     settings = get_settings()
@@ -143,35 +109,23 @@ async def _send_via_telerivet(phone: str, message: str) -> dict:
 
 async def _dispatch_sms(phone: str, message: str) -> dict:
     """
-    Fan out to all configured SMS providers in parallel.
-    Returns {"overall": "sent"|"failed", "providers": {name: raw_status}, "errors": {name: error}}.
-    Configure via SMS_PROVIDER env var — comma-separated:
-      "africastalking"            → AT only
-      "telerivet"                 → Telerivet only
-      "africastalking,telerivet"  → both simultaneously
+    Send via Telerivet — the only SMS provider (see module docstring for why
+    Africa's Talking was removed). Kept in this {"overall", "providers",
+    "errors"} shape, rather than flattened, so AlertRecord.provider_status /
+    provider_errors and the frontend's existing per-provider rendering
+    (AlertTable.jsx) don't need to change for a single-provider setup.
     """
-    import asyncio as _asyncio
+    logger.info("SMS dispatch via telerivet to=%s", phone)
+    try:
+        result = await _send_via_telerivet(phone, message)
+        logger.info("Provider telerivet → %s", result["raw_status"])
+    except Exception as exc:
+        logger.error("Provider telerivet failed: %s", exc)
+        result = {"success": False, "raw_status": "exception", "error": str(exc)}
 
-    settings = get_settings()
-    providers = [p.strip() for p in settings.sms_provider.lower().split(",") if p.strip()]
-    logger.info("SMS dispatch via providers=%s to=%s", providers, phone)
-
-    async def try_provider(name: str) -> tuple[str, dict]:
-        try:
-            result = (
-                await _send_via_telerivet(phone, message) if name == "telerivet"
-                else await _send_via_africastalking(phone, message)
-            )
-            logger.info("Provider %s → %s", name, result["raw_status"])
-            return name, result
-        except Exception as exc:
-            logger.error("Provider %s failed: %s", name, exc)
-            return name, {"success": False, "raw_status": "exception", "error": str(exc)}
-
-    results = await _asyncio.gather(*[try_provider(p) for p in providers])
-    provider_status = {name: r["raw_status"] for name, r in results}
-    provider_errors = {name: r["error"] for name, r in results if r.get("error")}
-    overall = "sent" if any(r["success"] for _, r in results) else "failed"
+    provider_status = {"telerivet": result["raw_status"]}
+    provider_errors = {"telerivet": result["error"]} if result.get("error") else {}
+    overall = "sent" if result["success"] else "failed"
     return {"overall": overall, "providers": provider_status, "errors": provider_errors}
 
 

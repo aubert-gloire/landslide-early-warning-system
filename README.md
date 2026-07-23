@@ -42,7 +42,7 @@ This system automates the full warning pipeline:
 2. Yesterday's rainfall is downloaded from NASA GPM IMERG (~14h latency) with CHIRPS Preliminary as fallback
 3. The USGS earthquake API is queried — a nearby M4.0+ event automatically lowers the alert threshold
 4. An XGBoost classifier scores all 250 slope units (AUC = 0.959)
-5. Units above the risk threshold trigger SMS alerts to registered district officers via Africa's Talking + Telerivet
+5. Units above the risk threshold trigger SMS alerts to registered district officers via Telerivet
 6. Officers reply YES/NO by SMS — feedback is logged and tracked as real-world operational accuracy
 
 ---
@@ -97,7 +97,7 @@ This behaviour is intentional. During Rwanda's dry season (June–September), ra
   ┌── prob ≥ threshold ──────────────┐   ┌── prob < threshold ──────────────┐
   ▼                                  ▼   ▼                                   ▼
   SMS Alert dispatched           MongoDB Atlas                     MongoDB Atlas
-  (Africa's Talking + Telerivet) (prediction saved)               (prediction saved)
+  (Telerivet)                    (prediction saved)               (prediction saved)
   → district officer                                               No alert sent —
   → replies YES / NO                                               system continues
 
@@ -170,7 +170,7 @@ class XGBModel:
 - Python 3.11+
 - Node.js 18+
 - MongoDB Atlas account (free tier)
-- Africa's Talking account (sandbox for testing)
+- Telerivet account (with an Android SIM route configured)
 - NASA Earthdata account (free) — for GPM IMERG
 - Google Earth Engine account (free) — for NDVI
 - OpenTopography API key (free) — for DEM
@@ -188,9 +188,9 @@ Edit `.env` with your credentials:
 ```env
 MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/
 MONGODB_DB_NAME=landslide_ews
-AT_USERNAME=your_africastalking_username
-AT_API_KEY=your_africastalking_api_key
-AT_SENDER_ID=EWS
+TELERIVET_API_KEY=your_telerivet_api_key
+TELERIVET_PROJECT_ID=your_telerivet_project_id
+TELERIVET_ROUTE_ID=your_telerivet_android_sim_route_id
 OFFICER_PASSWORD=your_dashboard_password
 EARTHDATA_TOKEN=your_nasa_earthdata_bearer_token
 EARTHDATA_USERNAME=your_nasa_earthdata_username
@@ -479,9 +479,9 @@ Also tested the full run with no override (normal dry-season conditions) — pip
 
 > **Development note:** During this testing phase, SMS alerts are sent to the developer's own phone number in place of registered field officer numbers. In a live operational deployment, each district officer's number would be registered in the database and alerts would route directly to them.
 
-- Africa's Talking: alert received on test device with correct district, risk level, GPS coordinates, and YES/NO reply instructions
-- Telerivet: parallel delivery confirmed via Android SIM route on MTN Rwanda (screenshot in `screenshots/`)
+- Telerivet: delivery confirmed via Android SIM route on MTN Rwanda (screenshot in `screenshots/`)
 - Reply simulation: "YES [unit_id]" and "NO [unit_id]" both correctly logged in the alerts collection
+- Africa's Talking was evaluated and removed as a provider — see `docs/africastalking-investigation.md` for the full test log; its shared/unregistered sender-ID pool did not reliably deliver on MTN Rwanda across multiple accounts, numbers, and message formats tested
 
 ### Strategy 6 — Cross-Platform & Hardware Testing
 
@@ -509,7 +509,7 @@ The following objectives were agreed with the supervisor at project proposal sta
 ✅ Exceeded. XGBoost achieved AUC = 0.959, above the 0.90 target. Class imbalance (landslide events are rare relative to non-events) was addressed with SMOTE oversampling inside a cross-validation-safe `ImbPipeline`, preventing data leakage between folds. Four models were compared on the same dataset — XGBoost outperformed Random Forest (0.921) and SVM (0.920), which were close to each other, and Logistic Regression (0.872), the weakest of the four.
 
 **Objective 3: Dispatch SMS alerts to field officers within 5 minutes of pipeline completion**
-✅ Achieved. From pipeline trigger to SMS delivery is under 60 seconds in production. Two providers (Africa's Talking + Telerivet) operate in parallel to ensure delivery resilience on MTN Rwanda. If one provider fails, the other delivers independently.
+✅ Achieved. From pipeline trigger to SMS delivery is under 60 seconds in production, via Telerivet's Android SIM route on MTN Rwanda. Africa's Talking was evaluated as a second provider but removed after testing showed its shared sender-ID pool doesn't reliably deliver on this network (see Discussion below) — Telerivet is the sole provider, not one of two redundant ones.
 
 **Objective 4: Build a monitoring dashboard usable by non-technical district officers**
 ✅ Achieved. The dashboard uses role-based login (district buttons, no password complexity), plain-language risk labels (LOW / MEDIUM / HIGH / CRITICAL), and a built-in HelpChat assistant with a two-pass fuzzy matching system that explains every panel in plain language, including a full end-to-end system walkthrough for first-time users.
@@ -535,7 +535,7 @@ The following objectives were agreed with the supervisor at project proposal sta
 
 **Sprint 2 — Model Training:** The SMOTE + `ImbPipeline` approach was essential. Without SMOTE, the classifier predicted "no landslide" for almost all cases — technically high accuracy (events are rare) but operationally useless. The 5% production threshold, set deliberately well below the 80% visual map threshold, reflects the asymmetric cost structure of a life-safety system: missing a real event costs lives, while a false alarm costs officer time.
 
-**Sprint 3 — Integration & Deployment:** The dual SMS provider architecture (Africa's Talking + Telerivet) was not in the original proposal but was added after discovering that Africa's Talking's shared sender ID pool has irregular delivery rates on MTN Rwanda. Telerivet's Android SIM route bypasses the aggregator entirely and provides a physical backup. This is a practical engineering decision driven by real operational constraints in the Rwandan telecommunications context.
+**Sprint 3 — Integration & Deployment:** Africa's Talking was the original SMS provider in the proposal, with Telerivet added later as a backup after early testing showed irregular delivery on MTN Rwanda. A follow-up investigation (2026-07-23) tested this exhaustively — two separate live AT accounts, three destination phone numbers, both short test text and full alert-format messages, blank and explicit sender IDs — and found consistent rejection in every combination, including the exact same message text (byte-for-byte) that had successfully delivered via the same account and number four months earlier. Content, account, and number were all ruled out; the most likely explanation is that MTN/AT's shared-pool filtering tightened between then and now, a carrier-side change outside this project's control. Africa's Talking was removed entirely rather than kept as a redundant path that silently fails — Telerivet's Android SIM route, which bypasses the aggregator pool altogether, is now the sole SMS provider. Full test log in `docs/africastalking-investigation.md`.
 
 **USGS Seismic Integration:** The dynamic threshold adjustment (5% → 3% when a M4.0+ earthquake is detected within 200km) reflects geotechnical knowledge: earthquakes reduce soil cohesion and lower the rainfall trigger point for slope failure. This feature was added after reviewing the 2023 Rubavu event, where a seismic precursor preceded a major landslide by less than 24 hours. It demonstrates that the system is designed to respond to compound hazards, not just rainfall alone.
 
@@ -583,7 +583,7 @@ The system identifies which slope unit is at elevated risk — it cannot pinpoin
 | POST | `/api/trigger` | Trigger full pipeline run; `dry_run: true` previews without SMS or DB writes |
 | POST | `/api/predict` | Single-point prediction with risk narrative and feature threshold context |
 | POST | `/api/predict/alert` | Expert override: run prediction and dispatch SMS to a named district |
-| POST | `/api/sms/callback` | Africa's Talking inbound SMS webhook (officer YES/NO replies) |
+| POST | `/api/sms/telerivet-callback` | Telerivet inbound SMS webhook (officer YES/NO replies) |
 | GET | `/health` | Service health check |
 
 Full interactive docs (Swagger UI): [landslide-ews-api.onrender.com/docs](https://landslide-ews-api.onrender.com/docs)
