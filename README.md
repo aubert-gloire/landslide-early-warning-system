@@ -360,10 +360,10 @@ The XGBoost model was evaluated using 5-fold stratified cross-validation on the 
 | Metric | Value |
 |--------|-------|
 | AUC-ROC | **0.959** |
-| Accuracy | 94.1% |
+| Accuracy | 96.8% |
 | False Negative Rate (threshold=0.05) | **8.3%** |
-| False Positive Rate (threshold=0.05) | 22.7% |
-| Precision | 0.41 |
+| False Positive Rate (threshold=0.05) | 3.0% |
+| Precision | 0.55 |
 | Recall | 0.917 |
 
 **Model comparison on same dataset:**
@@ -371,9 +371,9 @@ The XGBoost model was evaluated using 5-fold stratified cross-validation on the 
 | Model | AUC |
 |-------|-----|
 | XGBoost | **0.959** |
-| Random Forest | 0.941 |
-| Logistic Regression | 0.812 |
-| SVM | 0.798 |
+| Random Forest | 0.921 |
+| SVM (RBF) | 0.920 |
+| Logistic Regression | 0.872 |
 
 XGBoost selected as production model. SMOTE oversampling applied inside a cross-validation-safe `ImbPipeline` to handle class imbalance without data leakage.
 
@@ -506,7 +506,7 @@ The following objectives were agreed with the supervisor at project proposal sta
 ✅ Achieved. The pipeline runs automatically at 15:00 UTC via GitHub Actions. All 250 slope units across 5 districts receive a fresh risk score every morning with ~14-hour data lag (GPM IMERG) versus the 4-day lag of the original CHIRPS-only design. The reduced latency means the system has more time in the day to act on the assessment before conditions change.
 
 **Objective 2: Achieve AUC ≥ 0.90 on historical validation**
-✅ Exceeded. XGBoost achieved AUC = 0.959, above the 0.90 target. Class imbalance (landslide events are rare relative to non-events) was addressed with SMOTE oversampling inside a cross-validation-safe `ImbPipeline`, preventing data leakage between folds. Four models were compared on the same dataset — XGBoost outperformed Random Forest (0.941), Logistic Regression (0.812), and SVM (0.798).
+✅ Exceeded. XGBoost achieved AUC = 0.959, above the 0.90 target. Class imbalance (landslide events are rare relative to non-events) was addressed with SMOTE oversampling inside a cross-validation-safe `ImbPipeline`, preventing data leakage between folds. Four models were compared on the same dataset — XGBoost outperformed Random Forest (0.921) and SVM (0.920), which were close to each other, and Logistic Regression (0.872), the weakest of the four.
 
 **Objective 3: Dispatch SMS alerts to field officers within 5 minutes of pipeline completion**
 ✅ Achieved. From pipeline trigger to SMS delivery is under 60 seconds in production. Two providers (Africa's Talking + Telerivet) operate in parallel to ensure delivery resilience on MTN Rwanda. If one provider fails, the other delivers independently.
@@ -531,7 +531,7 @@ The following objectives were agreed with the supervisor at project proposal sta
 
 ### Milestone Impact
 
-**Sprint 1 — Data & Infrastructure:** The most critical design decision was using slope units instead of a pixel grid. A pixel grid treats flat agricultural land and a 40° cliff face as equivalent cells. Slope units, derived from watershed analysis on the Copernicus DEM, group terrain that physically behaves together under rainfall. Every prediction is therefore physically meaningful — not just a statistical output. This methodology follows Kuradusenge et al. (2020), who originally mapped these 396 units for Northern Province.
+**Sprint 1 — Data & Infrastructure:** The most critical design decision was using slope units instead of a pixel grid. A pixel grid treats flat agricultural land and a 40° cliff face as equivalent cells. Slope units, derived from watershed analysis on the Copernicus DEM, group terrain that physically behaves together under rainfall. Every prediction is therefore physically meaningful — not just a statistical output. This methodology follows Kuradusenge et al. (2020), who validated it for Ngororero District, Rwanda — this project adapts the same slope-unit approach for Northern Province.
 
 **Sprint 2 — Model Training:** The SMOTE + `ImbPipeline` approach was essential. Without SMOTE, the classifier predicted "no landslide" for almost all cases — technically high accuracy (events are rare) but operationally useless. The 5% production threshold, set deliberately well below the 80% visual map threshold, reflects the asymmetric cost structure of a life-safety system: missing a real event costs lives, while a false alarm costs officer time.
 

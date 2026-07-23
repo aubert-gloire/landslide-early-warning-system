@@ -27,7 +27,9 @@ from .auth import require_auth
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
-# Evidence-based thresholds for Rwanda Northern Province (Kuradusenge et al. 2020)
+# Evidence-based thresholds adapted from Kuradusenge et al. (2020) — that study
+# covered Ngororero District, Rwanda; this project applies the same slope +
+# antecedent-rainfall trigger mechanism to Northern Province.
 THRESHOLDS = {
     "slope_angle":         {"warn": 25.0, "critical": 35.0, "unit": "°",   "label": "slope angle"},
     "daily_mm":            {"warn": 25.0, "critical": 50.0, "unit": "mm",  "label": "daily rainfall"},
@@ -180,7 +182,7 @@ def _build_narrative(
     factors_str = "; ".join(parts)
     if risk_level in ("critical", "high"):
         intro = f"HIGH RISK flagged: {factors_str}."
-        outro = " Kuradusenge et al. (2020) identify steep slopes combined with high antecedent rainfall as the primary trigger mechanism for Northern Province landslides."
+        outro = " Kuradusenge et al. (2020) identify steep slopes combined with high antecedent rainfall as the primary landslide trigger mechanism in Rwanda (studied in Ngororero District) — the basis for this system's Northern Province thresholds."
     elif risk_level == "medium":
         intro = f"MODERATE RISK: {factors_str}."
         outro = " Conditions are elevated but do not yet meet the alert threshold. Monitor closely."

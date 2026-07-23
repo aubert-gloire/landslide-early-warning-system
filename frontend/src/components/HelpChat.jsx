@@ -37,7 +37,7 @@ const QA = [
   },
   {
     triggers: ["slope unit", "what is a slope unit", "unit", "396", "terrain unit", "hydrological", "what is a unit"],
-    answer: `A slope unit is a section of hillside that behaves as a single landslide risk area — bounded by ridge lines and valley lines, draining water in one consistent direction.\n\nThe system monitors 250 slope units across Northern Province. Each one is mapped as a polygon derived from the Copernicus 30m elevation model.\n\nWhy slope units? A pixel-based grid treats flat land and steep cliffs the same way. Slope units group terrain that physically behaves together under rainfall, which is more meaningful for landslide prediction. This approach follows Kuradusenge et al. (2020), who mapped Northern Province specifically.`,
+    answer: `A slope unit is a section of hillside that behaves as a single landslide risk area — bounded by ridge lines and valley lines, draining water in one consistent direction.\n\nThe system monitors 250 slope units across Northern Province. Each one is mapped as a polygon derived from the Copernicus 30m elevation model.\n\nWhy slope units? A pixel-based grid treats flat land and steep cliffs the same way. Slope units group terrain that physically behaves together under rainfall, which is more meaningful for landslide prediction. This approach follows Kuradusenge et al. (2020), who validated it for Ngororero District, Rwanda — this system adapts the same slope-unit methodology for Northern Province.`,
   },
   {
     triggers: ["predict", "prediction", "run prediction", "feature", "input", "how to use predict", "predict panel"],
@@ -85,7 +85,7 @@ const QA = [
   },
   {
     triggers: ["login", "sign in", "credentials", "account", "who can", "how do i log in"],
-    answer: `On the login page, click your district button (Gakenke, Burera, Musanze, Gicumbi) or System Admin. No password required — the button identifies you as the registered officer for that district.\n\nTo access without identifying yourself, click "Continue as Guest".\n\nAll roles have identical access to every tab and feature. The district shown in the header is for identification in the SMS log — it does not restrict what you can view or do.\n\nSessions last 24 hours. Close the browser tab or click "Sign out" to end your session early.`,
+    answer: `On the login page, sign in with the shared admin username and password, or click "Continue as Guest" to enter without credentials.\n\nThere's no separate account per district officer yet — everyone signs in the same way, and the district shown in the header afterward is just a label, not a restriction.\n\nAll roles have identical access to every tab and feature. Sessions last 24 hours. Close the browser tab or click "Sign out" to end your session early.`,
   },
   {
     triggers: ["what does this not do", "limitations", "what can't it do", "does not", "limitation", "not replace"],

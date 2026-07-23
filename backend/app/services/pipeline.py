@@ -351,7 +351,7 @@ class DataPipeline:
 
         await log("Building feature matrix (terrain + NDVI + soil + rainfall)…")
         feature_df = self.build_feature_matrix(rainfall_df)
-        await log(f"Feature matrix ready — {len(feature_df)} units × 8 features")
+        await log(f"Feature matrix ready — {len(feature_df)} units × {len(model.feature_cols)} features")
 
         # Seismic check — lower threshold if significant earthquake nearby in last 48h
         await log("Checking USGS seismic activity near Northern Province (M4.0+, 200km, 48h)…")
