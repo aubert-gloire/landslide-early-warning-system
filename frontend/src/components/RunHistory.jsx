@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useApi } from "../hooks/useApi";
 import RunHeatmap from "./RunHeatmap";
 
-const DISTRICTS = ["Gakenke", "Burera", "Musanze", "Gicumbi"];
+const DISTRICTS = ["Gakenke", "Burera", "Musanze", "Gicumbi", "Rulindo"];
 const PAGE_SIZE = 20;
 
 function riskColor(p) {

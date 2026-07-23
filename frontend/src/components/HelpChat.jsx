@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { authHeaders } from "../hooks/useApi";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 const BOT_NAME = "EWS Guide";
@@ -44,7 +45,7 @@ const QA = [
   },
   {
     triggers: ["district", "districts", "gakenke", "burera", "musanze", "gicumbi", "district card", "district tab"],
-    answer: `The Districts tab shows a summary card for each of the 4 monitored districts:\n\n• Peak risk today — highest risk score among all slope units in that district\n• Slope units monitored — total units tracked in that district\n• Alerts (last 7 days) — SMS alerts sent recently\n• Highest-risk sector — the sector name within the district carrying the most risk\n\nCards update automatically after every pipeline run.`,
+    answer: `The Districts tab shows a summary card for each of the 5 monitored districts:\n\n• Peak risk today — highest risk score among all slope units in that district\n• Slope units monitored — total units tracked in that district\n• Alerts (last 7 days) — SMS alerts sent recently\n• Highest-risk sector — the sector name within the district carrying the most risk\n\nCards update automatically after every pipeline run.`,
   },
   {
     triggers: ["data source", "where does the data", "rainfall data", "satellite", "imerg", "chirps", "gpm", "nasa"],
@@ -79,8 +80,8 @@ const QA = [
     answer: `The Alerts tab shows every SMS dispatched by the system.\n\n• Filter by district using the dropdown.\n• The stats panel at the top shows totals: alerts sent, confirmed, denied, awaiting feedback, confirmation rate.\n\nColumn meanings:\n• Sent at — date and time\n• Unit ID — slope unit that triggered the alert\n• Risk % — model score at the time\n• Status — SMS delivery result (sent / delivered / failed)\n• Officer Feedback — YES/NO reply received`,
   },
   {
-    triggers: ["why northern province", "why 4 districts", "why not all rwanda", "coverage", "which area", "scope"],
-    answer: `The system covers Northern Province — Gakenke, Burera, Musanze, and Gicumbi — for three reasons:\n\n1. Highest risk: Northern Province has Rwanda's highest historical landslide rate, driven by steep volcanic slopes and heavy seasonal rainfall.\n\n2. Calibrated model: the training data (Kuradusenge et al., 2020) was built specifically for this region. The model's thresholds are calibrated to Northern Province soils, slopes, and rainfall patterns — not Rwanda as a whole.\n\n3. MINEMA priority: Rwanda's national disaster authority has designated Northern Province as the primary landslide early warning zone.\n\nExpanding to other provinces would require region-specific training data and retraining.`,
+    triggers: ["why northern province", "why 5 districts", "why not all rwanda", "coverage", "which area", "scope"],
+    answer: `The system covers all five districts of Northern Province — Gakenke, Burera, Musanze, Gicumbi, and Rulindo — for three reasons:\n\n1. Highest risk: Northern Province has Rwanda's highest historical landslide rate, driven by steep volcanic slopes and heavy seasonal rainfall.\n\n2. Calibrated model: the training data (Kuradusenge et al., 2020) was built specifically for this region. The model's thresholds are calibrated to Northern Province soils, slopes, and rainfall patterns — not Rwanda as a whole.\n\n3. MINEMA priority: Rwanda's national disaster authority has designated Northern Province as the primary landslide early warning zone.\n\nExpanding to other provinces would require region-specific training data and retraining.`,
   },
   {
     triggers: ["login", "sign in", "credentials", "account", "who can", "how do i log in"],
@@ -186,7 +187,7 @@ export default function HelpChat() {
     try {
       const res = await fetch(`${API_BASE}/api/help/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ question: trimmed }),
         signal: AbortSignal.timeout(12000),
       });

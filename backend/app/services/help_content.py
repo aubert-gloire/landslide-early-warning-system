@@ -95,9 +95,9 @@ QA: list[dict] = [
         ),
     },
     {
-        "triggers": ["district", "districts", "gakenke", "burera", "musanze", "gicumbi"],
+        "triggers": ["district", "districts", "gakenke", "burera", "musanze", "gicumbi", "rulindo"],
         "answer": (
-            "The Districts tab summarises each of the 4 monitored districts: peak risk today, slope units "
+            "The Districts tab summarises each of the 5 monitored districts: peak risk today, slope units "
             "monitored, alerts in the last 7 days, and the highest-risk sector. Updates after every pipeline run."
         ),
     },
@@ -152,11 +152,12 @@ QA: list[dict] = [
         ),
     },
     {
-        "triggers": ["why northern province", "why 4 districts", "coverage", "scope"],
+        "triggers": ["why northern province", "why 5 districts", "coverage", "scope"],
         "answer": (
-            "The system covers Gakenke, Burera, Musanze, and Gicumbi because Northern Province has "
-            "Rwanda's highest historical landslide rate, the model was trained and calibrated specifically "
-            "for this region's soils and slopes, and MINEMA has designated it the primary early-warning zone."
+            "The system covers Gakenke, Burera, Musanze, Gicumbi, and Rulindo — all five districts of "
+            "Northern Province — because the region has Rwanda's highest historical landslide rate, the "
+            "model was trained and calibrated specifically for this region's soils and slopes, and MINEMA "
+            "has designated it the primary early-warning zone."
         ),
     },
     {

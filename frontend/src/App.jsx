@@ -222,7 +222,7 @@ export default function App() {
       }}>
         <SeverityStrip refreshKey={dashboardKey} />
         <span style={{ fontSize: 11, color: "var(--chalk-dim)" }}>
-          Northern Province · Gakenke · Burera · Musanze · Gicumbi
+          Northern Province · Gakenke · Burera · Musanze · Gicumbi · Rulindo
         </span>
       </footer>
 

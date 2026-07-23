@@ -15,6 +15,7 @@ const DISTRICT_INFO = {
   Burera:  { color: "#74936A" },
   Musanze: { color: "#C99A3E" },
   Gicumbi: { color: "#C24B3A" },
+  Rulindo: { color: "#8B6FB3" },
 };
 
 const styles = {
@@ -43,7 +44,7 @@ export default function DistrictCards() {
 
   if (loading) return (
     <div style={styles.grid}>
-      {["Gakenke", "Burera", "Musanze", "Gicumbi"].map((d) => (
+      {["Gakenke", "Burera", "Musanze", "Gicumbi", "Rulindo"].map((d) => (
         <div key={d} style={styles.loadingCard}>Loading {d}…</div>
       ))}
     </div>

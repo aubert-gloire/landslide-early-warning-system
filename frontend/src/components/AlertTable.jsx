@@ -50,7 +50,7 @@ const styles = {
   },
 };
 
-const DISTRICTS = ["All", "Gakenke", "Burera", "Musanze", "Gicumbi"];
+const DISTRICTS = ["All", "Gakenke", "Burera", "Musanze", "Gicumbi", "Rulindo"];
 const PAGE_SIZE = 20;
 
 export default function AlertTable() {

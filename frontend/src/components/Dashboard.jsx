@@ -7,6 +7,7 @@ const DISTRICT_ACCENT = {
   Burera:  { color: "var(--moss)",        text: "var(--moss-text)"   },
   Musanze: { color: "var(--amber)",       text: "var(--amber-text)"  },
   Gicumbi: { color: "var(--ember)",       text: "var(--ember-text)"  },
+  Rulindo: { color: "var(--chalk)",       text: "var(--chalk-dim)"   },
 };
 
 function riskColor(p) {
@@ -256,11 +257,11 @@ export default function Dashboard({ onRunPipeline, onNavigate }) {
         <p style={{ fontSize: 11.5, color: "var(--chalk-dim)", margin: "0 0 16px" }}>
           Today's actual weather, district by district.
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
           {(() => {
             const wDistricts = weatherData?.districts ?? {};
             const wAvailable = weatherData?.available;
-            return ["Gakenke", "Burera", "Musanze", "Gicumbi"].map(name => {
+            return ["Gakenke", "Burera", "Musanze", "Gicumbi", "Rulindo"].map(name => {
               const w = wDistricts[name];
               const accent = DISTRICT_ACCENT[name]?.color ?? "var(--storm)";
               return (
