@@ -33,6 +33,16 @@ ml/artifacts/*.pkl
 !ml/artifacts/.gitkeep
 !ml/artifacts/rf_model.joblib
 
+# Static per-unit feature tables (~35KB total) — required by
+# FeatureMatrixBuilder._load_static() at inference time. Without these,
+# every prediction silently scores on null terrain/NDVI/soil/landuse and
+# rainfall alone (found 2026-07-23: production had been doing exactly this
+# since deploy, because this blanket *.parquet rule swallowed them too).
+!data/processed/terrain_per_unit.parquet
+!data/processed/ndvi_2023.parquet
+!data/processed/soil_per_unit.parquet
+!data/processed/landuse_per_unit.parquet
+
 # Node
 node_modules/
 frontend/dist/
