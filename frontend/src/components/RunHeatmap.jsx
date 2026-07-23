@@ -69,15 +69,27 @@ export default function RunHeatmap({ refreshKey }) {
   const ranCount = runs.length;
   const rainfallOkCount = runs.filter((r) => r.rainfall_available !== false).length;
   const terrainOnlyCount = runs.filter((r) => r.rainfall_available === false).length;
-  const noRunCount = DAYS - ranCount;
-  const coveragePct = Math.round((ranCount / DAYS) * 1000) / 10;
+
+  // The pipeline hasn't necessarily existed for the full 98-day window —
+  // measure coverage against days since its first recorded run instead,
+  // so a young system doesn't read as an (inaccurate) reliability problem.
+  const firstRunDate = runs.map((r) => r.run_date).sort()[0];
+  let eligibleDays = DAYS;
+  if (firstRunDate) {
+    const firstDate = new Date(`${firstRunDate}T00:00:00Z`);
+    const daysSinceStart = Math.floor((today - firstDate) / 86400000) + 1;
+    eligibleDays = Math.min(DAYS, Math.max(1, daysSinceStart));
+  }
+  const sinceLaunch = eligibleDays < DAYS;
+  const noRunCount = Math.max(0, eligibleDays - ranCount);
+  const coveragePct = Math.round((ranCount / eligibleDays) * 1000) / 10;
 
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, flexWrap: "wrap", gap: 16 }}>
         <div>
           <div style={{ fontSize: 11, color: "var(--chalk-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
-            Run coverage — last {WEEKS} weeks
+            {sinceLaunch ? `Run coverage — since launch (${eligibleDays}d)` : `Run coverage — last ${WEEKS} weeks`}
           </div>
           <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 30, fontWeight: 700 }}>
             {loading ? "…" : `${coveragePct}%`}

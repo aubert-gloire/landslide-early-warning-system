@@ -217,7 +217,7 @@ export default function Dashboard({ onRunPipeline, onNavigate }) {
           fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--chalk-dim)",
           letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 20px",
         }}>District risk — today</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
           {dLoading
             ? [1,2,3,4].map(i => (
                 <div key={i} style={{

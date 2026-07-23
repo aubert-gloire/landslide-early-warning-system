@@ -12,28 +12,29 @@ function riskColor(p) {
   return "var(--moss-text)";
 }
 
-function StatusBadge({ triggered }) {
-  return triggered ? (
+const BADGE_STYLES = {
+  ember: { background: "rgba(194,75,58,0.14)", color: "var(--ember-text)", border: "1px solid rgba(194,75,58,0.35)" },
+  amber: { background: "rgba(201,154,62,0.12)", color: "var(--amber-text)", border: "1px solid rgba(201,154,62,0.35)" },
+  moss:  { background: "rgba(116,147,106,0.10)", color: "var(--moss-text)", border: "1px solid rgba(116,147,106,0.28)" },
+};
+
+function Badge({ tone, children }) {
+  return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5,
       padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-      background: "rgba(194,75,58,0.14)", color: "var(--ember-text)",
-      border: "1px solid rgba(194,75,58,0.35)", fontFamily: "'Space Mono', monospace",
-      letterSpacing: "0.05em",
+      fontFamily: "'Space Mono', monospace", letterSpacing: "0.05em",
+      ...BADGE_STYLES[tone],
     }}>
-      ALERT SENT
-    </span>
-  ) : (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-      background: "rgba(116,147,106,0.10)", color: "var(--moss-text)",
-      border: "1px solid rgba(116,147,106,0.28)", fontFamily: "'Space Mono', monospace",
-      letterSpacing: "0.05em",
-    }}>
-      MONITORING
+      {children}
     </span>
   );
+}
+
+function StatusBadge({ alertsTriggered, smsSent }) {
+  if (alertsTriggered > 0 && smsSent > 0) return <Badge tone="ember">ALERT SENT</Badge>;
+  if (alertsTriggered > 0) return <Badge tone="amber">RISK DETECTED</Badge>;
+  return <Badge tone="moss">MONITORING</Badge>;
 }
 
 function DistrictCell({ name, stats }) {
@@ -115,7 +116,7 @@ export default function RunHistory() {
                     {date}
                   </td>
                   <td style={styles.td}>
-                    <StatusBadge triggered={r.alerts_triggered > 0} />
+                    <StatusBadge alertsTriggered={r.alerts_triggered} smsSent={r.sms_sent} />
                   </td>
                   <td style={{ ...styles.td, fontSize: 12 }}>
                     {r.rainfall_available === false
