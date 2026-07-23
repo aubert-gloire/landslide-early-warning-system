@@ -153,6 +153,11 @@ function ResultPanel({ result, onSendAlert, alertDistrict, setAlertDistrict, ale
                 {result.district}{result.sector ? ` · ${result.sector}` : ""}{result.data_date ? ` · data as of ${result.data_date}` : ""}
               </span>
             )}
+            {result.rainfall_available === false && (
+              <span style={{ color: "var(--amber-text)", fontSize: 11, fontWeight: 600 }}>
+                ⚠ TERRAIN-ONLY — rainfall data unavailable for this run
+              </span>
+            )}
           </div>
         </div>
 

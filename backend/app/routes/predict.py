@@ -305,13 +305,23 @@ async def predict_for_unit(unit_id: int):
         )
 
     feature_vals = latest.get("features") or {}
-    if feature_vals.get("slope_angle") is None or feature_vals.get("daily_mm") is None:
+    if feature_vals.get("slope_angle") is None:
         raise HTTPException(
             status_code=503,
-            detail="This slope unit's latest run is missing required data. Re-run the pipeline.",
+            detail="This slope unit's latest run is missing terrain data. Re-run the pipeline.",
         )
 
+    # Rainfall (GPM IMERG / CHIRPS) fails far more often than terrain data — both
+    # sources can miss a day entirely (see pipeline.py's own fallback handling,
+    # and rainfall_available on the prediction doc). Treat missing rainfall as 0 /
+    # terrain-only, the same way the live scoring pipeline already does, instead
+    # of blocking this whole endpoint on it.
+    rainfall_available = bool(latest.get("rainfall_available", feature_vals.get("daily_mm") is not None))
+    RAINFALL_FIELDS = ["daily_mm", "antecedent_3day_mm", "antecedent_5day_mm", "antecedent_10day_mm", "rainfall_intensity_ratio"]
+
     request_kwargs = {k: v for k, v in feature_vals.items() if v is not None}
+    for field in RAINFALL_FIELDS:
+        request_kwargs.setdefault(field, 0.0)
     if "soil_class" in request_kwargs:
         request_kwargs["soil_class"] = int(request_kwargs["soil_class"])
     if "landuse_class" in request_kwargs:
@@ -353,6 +363,7 @@ async def predict_for_unit(unit_id: int):
         "risk_level":           risk_level,
         "alert_triggered":      alert,
         "production_threshold": model_wrapper.production_threshold,
+        "rainfall_available":   rainfall_available,
         "top_features":         top_features_enriched,
         "risk_narrative":       narrative,
         "input_summary": {
