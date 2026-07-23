@@ -43,6 +43,14 @@ BACKTEST_EVENTS = [
         "lon": 29.8435,
         "is_primary": False,
     },
+    {
+        "name": "May 2018 Northern Province (Gakenke)",
+        "date": "2018-05-08",
+        "district": "Gakenke",
+        "lat": -1.7100,
+        "lon": 29.7700,
+        "is_primary": False,
+    },
 ]
 
 
@@ -54,48 +62,72 @@ class Backtester:
 
     def run(
         self,
-        matrix_path: Path | str,
+        processed_dir: Path | str,
         slope_units_gdf,
         output_path: Path | str | None = None,
     ) -> pd.DataFrame:
         """
         For each documented event, check whether the model would have produced
-        a probability ≥ alert_threshold on the event date (or the day before).
+        a probability >= alert_threshold on the event date (or the two days before).
+
+        Static terrain/soil/NDVI/landuse features are sourced the same way the
+        live inference path does (FeatureMatrixBuilder._load_static, covering
+        every unit) — NOT from training_matrix.parquet, which only contains the
+        ~184/396 units actually sampled into the training set. Sourcing from the
+        training matrix previously meant any backtest event landing on an
+        unsampled unit silently produced no prediction at all (status='no_data'
+        counted as a miss), rather than a genuine model failure. Rainfall comes
+        from chirps_historical.parquet directly for the same reason — it has
+        full history for every unit, unlike the sparse training matrix.
 
         Returns a report DataFrame with one row per event.
         """
-        matrix = pd.read_parquet(matrix_path)
-        matrix["date"] = pd.to_datetime(matrix["date"])
-
         from shapely.geometry import Point
-        import geopandas as gpd
+
+        from ml.features.matrix import DYNAMIC_FEATURES, FeatureMatrixBuilder
+
+        processed_dir = Path(processed_dir)
+        static = FeatureMatrixBuilder(processed_dir)._load_static(slope_units_gdf)
+
+        chirps = pd.read_parquet(processed_dir / "chirps_historical.parquet")
+        chirps["date"] = pd.to_datetime(chirps["date"])
 
         results = []
         for event in BACKTEST_EVENTS:
             event_date = pd.Timestamp(event["date"])
             check_dates = [event_date, event_date - pd.Timedelta(days=1), event_date - pd.Timedelta(days=2)]
 
-            # Find the slope unit containing this event point
+            # Find the slope unit containing this event point (fall back to
+            # nearest centroid if the point doesn't land inside any polygon).
             pt = Point(event["lon"], event["lat"])
             matching = slope_units_gdf[slope_units_gdf.geometry.contains(pt)]
             if matching.empty:
-                logger.warning("Event %s does not match any slope unit", event["name"])
-                results.append({**event, "max_probability": None, "alert_triggered": False, "status": "unit_not_found"})
+                dists = slope_units_gdf.geometry.centroid.distance(pt)
+                matching = slope_units_gdf.iloc[[dists.idxmin()]]
+            unit_id = int(matching.iloc[0]["unit_id"])
+
+            static_row = static[static["unit_id"] == unit_id]
+            if static_row.empty:
+                logger.warning("No static features for unit %d (event %s)", unit_id, event["name"])
+                results.append({**event, "unit_id": unit_id, "max_probability": None, "alert_triggered": False, "status": "no_static_features"})
+                continue
+            static_vals = static_row.iloc[0].to_dict()
+
+            rain_rows = chirps[(chirps["unit_id"] == unit_id) & (chirps["date"].isin(check_dates))]
+            if rain_rows.empty:
+                logger.warning("No CHIRPS rainfall for unit %d on backtest dates (event %s)", unit_id, event["name"])
+                results.append({**event, "unit_id": unit_id, "max_probability": None, "alert_triggered": False, "status": "no_rainfall_data"})
                 continue
 
-            unit_id = matching.iloc[0]["unit_id"]
+            feature_rows = []
+            for _, rain_row in rain_rows.iterrows():
+                row = {c: static_vals.get(c) for c in self.feature_cols if c not in DYNAMIC_FEATURES}
+                for c in DYNAMIC_FEATURES:
+                    if c in rain_row:
+                        row[c] = rain_row[c]
+                feature_rows.append(row)
 
-            # Find highest probability in check window
-            rows = matrix[
-                (matrix["unit_id"] == unit_id) & (matrix["date"].isin(check_dates))
-            ]
-
-            if rows.empty:
-                logger.warning("No matrix rows for unit %d on backtest dates", unit_id)
-                results.append({**event, "unit_id": unit_id, "max_probability": None, "alert_triggered": False, "status": "no_data"})
-                continue
-
-            X = rows[self.feature_cols].fillna(rows[self.feature_cols].median()).values
+            X = pd.DataFrame(feature_rows)[self.feature_cols].values
             probs = self.model.predict_proba(X)[:, 1]
             max_prob = float(probs.max())
             alert = bool(max_prob >= self.alert_threshold)

@@ -1,4 +1,5 @@
 name,date,district,lat,lon,is_primary,unit_id,max_probability,alert_triggered,status
-May 2023 Northern Province,2023-05-02,Musanze,-1.4996,29.6346,True,9873369,0.5703,True,detected
-May 2023 Northern Province (Gakenke),2023-05-04,Gakenke,-1.6995,29.7855,True,6454095,0.6404,True,detected
-May 2018 Northern Province,2018-05-06,Burera,-1.399,29.8435,False,4045815,0.6942,True,detected
+May 2023 Northern Province,2023-05-02,Musanze,-1.4996,29.6346,True,9873369,0.9941,True,detected
+May 2023 Northern Province (Gakenke),2023-05-04,Gakenke,-1.6995,29.7855,True,6454095,0.9888,True,detected
+May 2018 Northern Province,2018-05-06,Burera,-1.399,29.8435,False,4045815,0.9851,True,detected
+May 2018 Northern Province (Gakenke),2018-05-08,Gakenke,-1.71,29.77,False,4685337,0.2347,True,detected

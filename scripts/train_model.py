@@ -84,7 +84,7 @@ def main():
             alert_threshold=meta["production_threshold"],
         )
         report = backtester.run(
-            matrix_path=matrix_path,
+            processed_dir=processed_dir,
             slope_units_gdf=slope_units,
             output_path=ROOT / "ml/artifacts/backtest_report.csv",
         )

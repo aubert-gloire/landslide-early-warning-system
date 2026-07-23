@@ -27,7 +27,7 @@
   "cv_fpr_at_production": 0.029999999999900002,
   "cv_fnr_at_0_50": 0.16666666665277777,
   "cv_fpr_at_0_50": 0.009999999999966667,
-  "backtest_detected": 3,
+  "backtest_detected": 4,
   "backtest_total": 4,
   "model_comparison": {
     "Logistic Regression": {
