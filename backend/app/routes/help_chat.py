@@ -13,14 +13,15 @@ from __future__ import annotations
 import logging
 
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
 from ..services.help_content import rule_based_answer, top_matches
+from .auth import require_auth
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 GEMINI_MODEL = "gemini-flash-latest"
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"

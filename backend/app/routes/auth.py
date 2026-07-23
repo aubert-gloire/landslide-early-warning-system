@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timedelta
 
 import bcrypt as _bcrypt
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from ..database import get_db
@@ -20,6 +20,35 @@ from ..database import get_db
 router = APIRouter()
 
 _tokens: dict[str, dict] = {}
+
+
+async def require_auth(
+    authorization: str | None = Header(default=None),
+    token: str | None = Query(default=None),
+) -> dict:
+    """
+    FastAPI dependency gating every non-public route behind a valid session token.
+    Accepts the token as `Authorization: Bearer <token>` (used by fetch calls) or
+    as a `?token=` query param — the browser's native EventSource API (used for
+    the /api/trigger/stream log viewer) cannot set custom headers, so it has no
+    other way to authenticate.
+    """
+    tok = None
+    if authorization and authorization.startswith("Bearer "):
+        tok = authorization[len("Bearer "):]
+    elif token:
+        tok = token
+
+    if not tok:
+        raise HTTPException(status_code=401, detail="Missing authentication token.")
+
+    entry = _tokens.get(tok)
+    if not entry:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    if datetime.utcnow() > datetime.fromisoformat(entry["expires"]):
+        _tokens.pop(tok, None)
+        raise HTTPException(status_code=401, detail="Session expired.")
+    return entry
 
 
 def _hash(password: str) -> str:

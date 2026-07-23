@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useApi } from "../hooks/useApi";
+import { useApi, authHeaders } from "../hooks/useApi";
 import RadialGauge from "./RadialGauge";
 import ThresholdSlider from "./ThresholdSlider";
 
@@ -305,7 +305,7 @@ function OfficerMode() {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/predict/unit/${id}`);
+      const res = await fetch(`${API_BASE}/api/predict/unit/${id}`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok) {
         setError(data.detail || `Error ${res.status}`);
@@ -328,7 +328,7 @@ function OfficerMode() {
     try {
       const res = await fetch(`${API_BASE}/api/predict/alert`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -463,7 +463,7 @@ function AdvancedMode() {
     try {
       const res = await fetch(`${API_BASE}/api/predict`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
       });
 
@@ -497,7 +497,7 @@ function AdvancedMode() {
     try {
       const res = await fetch(`${API_BASE}/api/predict/alert`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
       });
       const data = await res.json();

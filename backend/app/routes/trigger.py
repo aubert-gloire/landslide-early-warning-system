@@ -15,8 +15,9 @@ from pydantic import BaseModel
 
 from ..config import Settings, get_settings
 from ..services.pipeline import DataPipeline
+from .auth import require_auth
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 def get_pipeline(request: Request) -> DataPipeline:

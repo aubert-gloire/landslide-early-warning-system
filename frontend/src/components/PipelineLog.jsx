@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getAuthToken } from "../hooks/useApi";
 
 const BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "";
 
@@ -82,7 +83,11 @@ export default function PipelineLog({ onDone, onClose }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
-    const es = new EventSource(`${BASE}/api/trigger/stream`);
+    // EventSource can't set custom headers, so the token travels as a query
+    // param here instead of the Authorization header authHeaders() uses elsewhere.
+    const token = getAuthToken();
+    const url = `${BASE}/api/trigger/stream${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const es = new EventSource(url);
 
     es.onmessage = (e) => {
       const event = JSON.parse(e.data);

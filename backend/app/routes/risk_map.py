@@ -2,13 +2,14 @@ import asyncio
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from ..database import get_db
 from ..config import get_settings
+from .auth import require_auth
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 _boundary_cache: dict | None = None
 

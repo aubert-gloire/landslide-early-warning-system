@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 
 from ..database import get_db
+from .auth import require_auth
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("/pipeline-runs")

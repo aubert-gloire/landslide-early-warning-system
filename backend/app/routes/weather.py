@@ -11,9 +11,11 @@ especially on days the satellite rainfall pipeline has no data for that unit.
 import logging
 
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-router = APIRouter()
+from .auth import require_auth
+
+router = APIRouter(dependencies=[Depends(require_auth)])
 logger = logging.getLogger(__name__)
 
 # District centroids — averaged from slope_units.centroid_lat/lon in MongoDB.
@@ -22,6 +24,7 @@ DISTRICT_COORDS = {
     "Burera":  (-1.2152, 29.8106),
     "Musanze": (-1.3718, 29.5164),
     "Gicumbi": (-1.3917, 30.2610),
+    "Rulindo": (-1.7399, 29.9999),
 }
 
 # WMO weather codes returned by Open-Meteo — subset relevant to this region.

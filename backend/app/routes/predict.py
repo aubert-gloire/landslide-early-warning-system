@@ -16,15 +16,16 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from ..config import get_settings
 from ..database import get_db
 from ..ml.xgb_model import XGBModel
 from ..services.sms import send_alert
+from .auth import require_auth
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 # Evidence-based thresholds for Rwanda Northern Province (Kuradusenge et al. 2020)
 THRESHOLDS = {

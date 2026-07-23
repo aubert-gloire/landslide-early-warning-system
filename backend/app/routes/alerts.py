@@ -1,15 +1,16 @@
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from ..database import get_db
 from ..services.sms import handle_inbound
+from .auth import require_auth
 
 router = APIRouter()
 
 
-@router.get("/alerts")
+@router.get("/alerts", dependencies=[Depends(require_auth)])
 async def get_alerts(
     district: str | None = Query(default=None),
     limit: int = Query(default=50, le=200),
@@ -42,7 +43,7 @@ async def get_alerts(
     return {"total": total, "skip": skip, "limit": limit, "alerts": alerts}
 
 
-@router.get("/alerts/stats")
+@router.get("/alerts/stats", dependencies=[Depends(require_auth)])
 async def get_alert_stats():
     """Summary stats for the feedback dashboard."""
     db = get_db()

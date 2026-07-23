@@ -2,16 +2,17 @@ import logging
 import math
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from ..database import get_db
+from .auth import require_auth
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
-TARGET_DISTRICTS = ["Gakenke", "Burera", "Musanze", "Gicumbi"]
+TARGET_DISTRICTS = ["Gakenke", "Burera", "Musanze", "Gicumbi", "Rulindo"]
 
 
 def _safe_str(val):
