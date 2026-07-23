@@ -5,15 +5,16 @@ import SeverityBadge from "./SeverityBadge";
 function FeedbackStats() {
   const { data } = useApi("/api/alerts/stats");
   if (!data) return null;
-  const { total_alerts, confirmed, denied, awaiting_feedback, confirmation_rate } = data;
+  const { total_alerts, confirmed, denied, awaiting_feedback, confirmation_rate, historical_backfilled } = data;
   return (
     <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
       {[
-        { label: "Total Alerts Sent",      value: total_alerts,       color: "var(--chalk-dim)" },
+        { label: "Real SMS Dispatched",    value: total_alerts,       color: "var(--chalk-dim)" },
         { label: "Confirmed by Officers",  value: confirmed,           color: "var(--moss-text)" },
         { label: "Denied by Officers",     value: denied,              color: "var(--ember-text)" },
         { label: "Awaiting Feedback",      value: awaiting_feedback,   color: "var(--amber-text)" },
         { label: "Confirmation Rate",      value: `${confirmation_rate}%`, color: "var(--storm-text)" },
+        { label: "Historical (no SMS)",    value: historical_backfilled ?? 0, color: "var(--chalk-dim)" },
       ].map(({ label, value, color }) => (
         <div key={label} style={{
           flex: 1, minWidth: 120, background: "var(--panel)",
@@ -112,7 +113,9 @@ export default function AlertTable() {
                       : <span style={{ color: "var(--chalk-dim)", fontSize: 11 }}>—</span>}
                   </td>
                   <td style={styles.td}>
-                    {a.provider_status && Object.keys(a.provider_status).length > 0 ? (
+                    {a.backfill_note ? (
+                      <SeverityBadge level="WATCH" label="HISTORICAL — not dispatched" />
+                    ) : a.provider_status && Object.keys(a.provider_status).length > 0 ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                         {Object.entries(a.provider_status).map(([provider, rawStatus]) => {
                           const error = a.provider_errors?.[provider];

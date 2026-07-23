@@ -45,13 +45,24 @@ async def get_alerts(
 
 @router.get("/alerts/stats", dependencies=[Depends(require_auth)])
 async def get_alert_stats():
-    """Summary stats for the feedback dashboard."""
+    """
+    Summary stats for the feedback dashboard.
+
+    Historical backfill records (real risk crossed threshold on a past date,
+    but no SMS was ever dispatched — see backfill_note) are excluded from the
+    headline counts so "Total Alerts Sent" means what it says. They're
+    reported separately instead of being dropped, so the real historical
+    record stays visible on the page, just not conflated with live dispatch
+    performance.
+    """
     db = get_db()
-    total = await db.alert_records.count_documents({})
-    confirmed = await db.alert_records.count_documents({"feedback": "CONFIRMED"})
-    denied = await db.alert_records.count_documents({"feedback": "DENIED"})
-    pending_feedback = await db.alert_records.count_documents({"feedback": None})
-    failed = await db.alert_records.count_documents({"delivery_status": "failed"})
+    real_query = {"backfill_note": {"$exists": False}}
+    total = await db.alert_records.count_documents(real_query)
+    confirmed = await db.alert_records.count_documents({**real_query, "feedback": "CONFIRMED"})
+    denied = await db.alert_records.count_documents({**real_query, "feedback": "DENIED"})
+    pending_feedback = await db.alert_records.count_documents({**real_query, "feedback": None})
+    failed = await db.alert_records.count_documents({**real_query, "delivery_status": "failed"})
+    historical_backfilled = await db.alert_records.count_documents({"backfill_note": {"$exists": True}})
     return {
         "total_alerts": total,
         "confirmed": confirmed,
@@ -59,6 +70,7 @@ async def get_alert_stats():
         "awaiting_feedback": pending_feedback,
         "delivery_failed": failed,
         "confirmation_rate": round(confirmed / total * 100, 1) if total > 0 else 0,
+        "historical_backfilled": historical_backfilled,
     }
 
 
