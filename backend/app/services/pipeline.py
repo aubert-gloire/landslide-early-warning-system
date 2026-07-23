@@ -182,8 +182,8 @@ class DataPipeline:
         run_date = date.today()
         db = get_db()
 
-        # The GitHub Actions cron (15:00 UTC) and the in-process fallback
-        # (16:00 UTC) are only an hour apart so the fallback only fires if
+        # The GitHub Actions cron (23:00 UTC) and the in-process fallback
+        # (23:45 UTC) are only 45 min apart so the fallback only fires if
         # the primary genuinely failed — but GitHub's scheduled-workflow
         # delivery is best-effort and has been observed landing 1h-1h20min
         # late, which collapses that gap and lets both fire for real within
@@ -313,7 +313,7 @@ class DataPipeline:
             # NaN (NaN is truthy in Python) — so a failed IMERG+CHIRPS day got cached as
             # NaN for all 396 units. The cache-hit fast path above only checks record
             # *count*, not validity, so that NaN silently poisoned every later run that
-            # same day — including the 16:00 UTC fallback job, which never got a real
+            # same day — including the 23:45 UTC fallback job, which never got a real
             # chance to retry. Skipping NaN rows here means a failed day leaves the cache
             # empty, so the next run that day retries the fetch instead of reusing garbage.
             rain_upserts = [

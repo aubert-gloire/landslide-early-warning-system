@@ -54,7 +54,7 @@ QA: list[dict] = [
     {
         "triggers": ["pipeline", "run pipeline", "trigger", "cron", "schedule", "daily"],
         "answer": (
-            "The pipeline runs every morning (10:00 AM Kigali time via GitHub Actions, or manually via "
+            "The pipeline runs every morning (01:00 AM Kigali time via GitHub Actions, or manually via "
             "Run Pipeline). It downloads yesterday's rainfall, checks for nearby earthquakes, builds the "
             "feature matrix, scores all 250 units, saves predictions, and sends SMS alerts to any unit "
             "above threshold."

@@ -2,14 +2,20 @@ name: Daily Landslide Pipeline
 
 on:
   schedule:
-    # 15:00 UTC = 17:00 Africa/Kigali. GPM IMERG Late Daily (the primary
-    # rainfall source) has ~14h latency — yesterday's data isn't published
-    # until ~14:00 UTC (see README "Rainfall source latency"). The previous
-    # 08:00 UTC schedule fired ~6h before IMERG was ready, and its fallback
-    # (CHIRPS Preliminary) has an unrelated ~4-day lag so it can never serve
-    # "yesterday" either — both sources were routinely unavailable at
-    # trigger time, silently degrading every run to terrain-only signal.
-    - cron: "0 15 * * *"
+    # 23:00 UTC = 01:00 Africa/Kigali (next day). GPM IMERG Late Daily's
+    # nominal latency is ~14h (published by ~14:00 UTC), but real granule
+    # timestamps observed in production sometimes ran ~2h+ later than that
+    # — the previous 15:00 UTC schedule (only ~1h of margin) failed outright
+    # on 2 of 7 recent days (2026-07-17, 07-21), both confirmed to be pure
+    # timing misses: the same granules existed hours later when re-checked.
+    # CHIRPS Preliminary (the coded fallback) has its own unrelated ~4-day
+    # lag, so it can never rescue a late-IMERG day regardless of trigger
+    # time — once IMERG misses its window, the whole run degrades to
+    # terrain-only with no real safety net. 23:00 UTC gives ~9h more buffer
+    # than the worst miss actually observed, and as a side effect lands at
+    # 01:00 Kigali — ready for officers first thing in the morning instead
+    # of late afternoon (17:00 Kigali under the old schedule).
+    - cron: "0 23 * * *"
   workflow_dispatch:  # allow manual trigger from GitHub UI
 
 jobs:
@@ -43,7 +49,7 @@ jobs:
         #
         # This intentionally does NOT require the row to be newer than this
         # step's own trigger call: backend/app/services/pipeline.py atomically
-        # claims run_date, so if the 16:00 UTC in-process fallback (or an
+        # claims run_date, so if the 23:45 UTC in-process fallback (or an
         # earlier delayed firing of this same schedule) already claimed and
         # completed today's run before this request landed, that's success,
         # not failure — what matters is whether today's assessment happened,

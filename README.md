@@ -38,7 +38,7 @@ Northern Province Rwanda records the highest landslide frequency in the country 
 
 This system automates the full warning pipeline:
 
-1. **Every morning at 15:00 UTC** (after GPM IMERG's ~14h latency window), a GitHub Actions cron job triggers the backend pipeline
+1. **Every morning at 23:00 UTC** (01:00 Kigali time — a wide margin past GPM IMERG's ~14h nominal latency window, since real-world granule timing sometimes runs later than that), a GitHub Actions cron job triggers the backend pipeline
 2. Yesterday's rainfall is downloaded from NASA GPM IMERG (~14h latency) with CHIRPS Preliminary as fallback
 3. The USGS earthquake API is queried — a nearby M4.0+ event automatically lowers the alert threshold
 4. An XGBoost classifier scores all 250 slope units (AUC = 0.959)
@@ -297,7 +297,7 @@ curl https://landslide-ews-api.onrender.com/api/districts
 ### Daily automated pipeline → GitHub Actions
 
 File: `.github/workflows/daily_pipeline.yml`
-- Triggers at 15:00 UTC (17:00 Kigali time) daily
+- Triggers at 23:00 UTC (01:00 Kigali time) daily
 - POSTs to `/api/trigger` on the Render backend
 - Add `API_BASE_URL` secret in GitHub → Settings → Secrets and variables → Actions
 
@@ -503,7 +503,7 @@ Pipeline execution time (production, Render Starter): ~45 seconds for full 396-u
 The following objectives were agreed with the supervisor at project proposal stage:
 
 **Objective 1: Automate daily landslide risk scoring for all monitored slope units in Northern Province**
-✅ Achieved. The pipeline runs automatically at 15:00 UTC via GitHub Actions. All 250 slope units across 5 districts receive a fresh risk score every morning with ~14-hour data lag (GPM IMERG) versus the 4-day lag of the original CHIRPS-only design. The reduced latency means the system has more time in the day to act on the assessment before conditions change.
+✅ Achieved. The pipeline runs automatically at 23:00 UTC via GitHub Actions. All 250 slope units across 5 districts receive a fresh risk score every morning with ~14-hour data lag (GPM IMERG) versus the 4-day lag of the original CHIRPS-only design. The reduced latency means the system has more time in the day to act on the assessment before conditions change.
 
 **Objective 2: Achieve AUC ≥ 0.90 on historical validation**
 ✅ Exceeded. XGBoost achieved AUC = 0.959, above the 0.90 target. Class imbalance (landslide events are rare relative to non-events) was addressed with SMOTE oversampling inside a cross-validation-safe `ImbPipeline`, preventing data leakage between folds. Four models were compared on the same dataset — XGBoost outperformed Random Forest (0.921) and SVM (0.920), which were close to each other, and Logistic Regression (0.872), the weakest of the four.
