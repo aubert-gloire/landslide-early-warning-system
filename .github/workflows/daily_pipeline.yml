@@ -32,28 +32,37 @@ jobs:
         # A 200 from /api/trigger only proves the request was accepted, not
         # that CHIRPS/IMERG fetch, inference, and the Mongo write succeeded —
         # those happen in a background task whose exceptions never reach this
-        # HTTP response. The only trustworthy signal is a row in pipeline_runs
-        # for today's date.
+        # HTTP response. The only trustworthy signal is pipeline_runs having a
+        # row for today's date with status=="completed".
         #
-        # This intentionally does NOT require that row to be newer than this
-        # step's own trigger call. backend/app/services/pipeline.py skips a
-        # second real run once today's date already has one (see fix
-        # "skip a second real pipeline run for a date already completed") —
-        # so if the 16:00 UTC in-process fallback (or an earlier delayed
-        # firing of this same schedule) already produced today's run before
-        # this request landed, this call correctly no-ops instead of
-        # duplicating it. That's success, not failure: what matters is
-        # whether today's assessment happened, not which trigger produced it.
+        # pipeline_runs.run_date now has a unique index and the row is claimed
+        # (status="running") the moment a run starts, well before it finishes —
+        # so checking for the row's mere presence (the old behaviour) would
+        # report success on a run that's still in flight, or one that already
+        # failed. Both are checked explicitly below.
+        #
+        # This intentionally does NOT require the row to be newer than this
+        # step's own trigger call: backend/app/services/pipeline.py atomically
+        # claims run_date, so if the 16:00 UTC in-process fallback (or an
+        # earlier delayed firing of this same schedule) already claimed and
+        # completed today's run before this request landed, that's success,
+        # not failure — what matters is whether today's assessment happened,
+        # not which trigger produced it.
         run: |
           TODAY=$(date -u +%Y-%m-%d)
           for i in $(seq 1 24); do
             sleep 15
             RESP=$(curl -sf --max-time 20 "${{ secrets.API_BASE_URL }}/api/pipeline-runs?limit=1") || continue
             RUN_DATE=$(echo "$RESP" | jq -r '.runs[0].run_date // empty')
-            if [ "$RUN_DATE" = "$TODAY" ]; then
+            STATUS=$(echo "$RESP" | jq -r '.runs[0].status // empty')
+            if [ "$RUN_DATE" = "$TODAY" ] && [ "$STATUS" = "completed" ]; then
               RUN_AT=$(echo "$RESP" | jq -r '.runs[0].run_at // empty')
               echo "Confirmed: pipeline_runs has a completed run for $TODAY (run_at=$RUN_AT)."
               exit 0
+            fi
+            if [ "$RUN_DATE" = "$TODAY" ] && [ "$STATUS" = "failed" ]; then
+              echo "::error::Today's run ($TODAY) was claimed but failed. Check Render logs."
+              exit 1
             fi
           done
           echo "::error::No completed pipeline run for $TODAY appeared in MongoDB within 6 minutes of triggering. Check Render logs."

@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
+from pymongo.errors import DuplicateKeyError
 
 from ..config import get_settings
 from ..database import get_db
@@ -152,6 +153,18 @@ class DataPipeline:
         self.running = True
         try:
             return await self._run_daily_impl(log_fn)
+        except Exception:
+            # self.running only guards this one process — a Render restart between
+            # two trigger attempts resets it, so the real cross-process guard is the
+            # MongoDB claim doc (see _run_daily_impl). If we claimed today's date and
+            # then blew up, mark it failed instead of leaving it stuck "running"
+            # forever, which would permanently block every later trigger for today.
+            db = get_db()
+            await db.pipeline_runs.update_one(
+                {"run_date": date.today().isoformat(), "status": "running"},
+                {"$set": {"status": "failed", "failed_at": datetime.utcnow().isoformat()}},
+            )
+            raise
         finally:
             # Always clear the guard, even if the pipeline raised partway through —
             # otherwise one failed run permanently blocks every future trigger.
@@ -174,18 +187,47 @@ class DataPipeline:
         # the primary genuinely failed — but GitHub's scheduled-workflow
         # delivery is best-effort and has been observed landing 1h-1h20min
         # late, which collapses that gap and lets both fire for real within
-        # seconds of each other. pipeline.running only blocks true
-        # concurrency, not two triggers landing sequentially, so it doesn't
-        # catch this. Checking for today's date closes the gap regardless
-        # of why a second trigger shows up.
-        existing = await db.pipeline_runs.find_one({"run_date": run_date.isoformat()})
-        if existing:
-            await log(
-                f"Skipping — a run for {run_date.isoformat()} already completed at "
-                f"{existing.get('run_at')} (units={existing.get('units_processed')}, "
-                f"alerts={existing.get('alerts_triggered')}). Not re-scoring or re-alerting today."
-            )
-            return {"skipped": True, "reason": "already_ran_today", "existing_run_at": existing.get("run_at")}
+        # seconds of each other. A plain find-then-insert check has a race
+        # window for the whole run duration (CHIRPS alone can take 60-90s),
+        # and pipeline.running doesn't survive a Render restart between the
+        # two trigger attempts — so this claims the date atomically via the
+        # unique index on pipeline_runs.run_date instead. Only one process
+        # can win the insert; everyone else gets DuplicateKeyError.
+        claim = {
+            "run_date": run_date.isoformat(),
+            "started_at": datetime.utcnow().isoformat(),
+            "status": "running",
+        }
+        try:
+            await db.pipeline_runs.insert_one(claim)
+        except DuplicateKeyError:
+            existing = await db.pipeline_runs.find_one({"run_date": run_date.isoformat()})
+            if existing and existing.get("status") == "failed":
+                # A previous attempt today claimed the date and then blew up —
+                # safe to reclaim and retry rather than staying blocked all day.
+                deleted = await db.pipeline_runs.delete_one(
+                    {"_id": existing["_id"], "status": "failed"}
+                )
+                if deleted.deleted_count:
+                    try:
+                        await db.pipeline_runs.insert_one(claim)
+                    except DuplicateKeyError:
+                        await log(f"Skipping — another run just claimed {run_date.isoformat()} concurrently.")
+                        return {"skipped": True, "reason": "already_claimed"}
+                else:
+                    await log(f"Skipping — another run just claimed {run_date.isoformat()} concurrently.")
+                    return {"skipped": True, "reason": "already_claimed"}
+            else:
+                status = existing.get("status", "completed") if existing else "completed"
+                started = existing.get("started_at", existing.get("run_at")) if existing else None
+                await log(
+                    f"Skipping — a run for {run_date.isoformat()} is already {status} "
+                    f"(claimed at {started}"
+                    + (f", units={existing.get('units_processed')}, alerts={existing.get('alerts_triggered')}"
+                       if existing and status == "completed" else "")
+                    + "). Not re-scoring or re-alerting today."
+                )
+                return {"skipped": True, "reason": "already_claimed", "status": status}
 
         await log("Loading XGBoost model…")
         model = self._get_model()
@@ -447,18 +489,24 @@ class DataPipeline:
                 "max_risk": round(float(d_rows["risk_probability"].max()), 4),
                 "alert_triggered": bool(d_rows["alert_triggered"].any()),
             }
-        await db.pipeline_runs.insert_one({
-            "run_date":            run_date.isoformat(),
-            "run_at":              datetime.utcnow().isoformat(),
-            "units_processed":     summary["units_processed"],
-            "max_risk_probability": round(float(predictions_df["risk_probability"].max()), 4),
-            "alerts_triggered":    summary["alerts_triggered"],
-            "sms_sent":            summary["sms_sent"],
-            "seismic_detected":    summary["seismic_detected"],
-            "threshold_used":      summary["threshold_used"],
-            "rainfall_available":  summary["rainfall_available"],
-            "rainfall_coverage_pct": summary["rainfall_coverage_pct"],
-            "districts":           district_stats,
-        })
+        # Complete the claim made at the top of this function rather than inserting
+        # a fresh doc — run_date already has a unique index, so a second insert_one
+        # here would raise DuplicateKeyError against our own claim doc.
+        await db.pipeline_runs.update_one(
+            {"run_date": run_date.isoformat()},
+            {"$set": {
+                "status":              "completed",
+                "run_at":              datetime.utcnow().isoformat(),
+                "units_processed":     summary["units_processed"],
+                "max_risk_probability": round(float(predictions_df["risk_probability"].max()), 4),
+                "alerts_triggered":    summary["alerts_triggered"],
+                "sms_sent":            summary["sms_sent"],
+                "seismic_detected":    summary["seismic_detected"],
+                "threshold_used":      summary["threshold_used"],
+                "rainfall_available":  summary["rainfall_available"],
+                "rainfall_coverage_pct": summary["rainfall_coverage_pct"],
+                "districts":           district_stats,
+            }},
+        )
 
         return summary

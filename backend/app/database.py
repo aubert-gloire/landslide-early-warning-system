@@ -36,3 +36,9 @@ async def ensure_indexes():
     await db.alert_records.create_index("sent_at")
     await db.recipients.create_index("phone")
     await db.recipients.create_index("district")
+    # Enforces the daily-run claim at the database level, not just in-memory —
+    # see services/pipeline.py's atomic claim/complete/fail flow. Without this,
+    # two processes (e.g. GitHub Actions' cron + the APScheduler fallback,
+    # racing across a Render restart) can both pass a plain find-then-insert
+    # check before either finishes writing its result.
+    await db.pipeline_runs.create_index("run_date", unique=True)
