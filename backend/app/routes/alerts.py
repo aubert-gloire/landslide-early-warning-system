@@ -15,10 +15,18 @@ async def get_alerts(
     district: str | None = Query(default=None),
     limit: int = Query(default=50, le=200),
     skip: int = Query(default=0),
+    include_historical: bool = Query(default=False),
 ):
-    """Returns alert history, newest first. Filter by district if provided."""
+    """
+    Returns alert history, newest first. Filter by district if provided.
+
+    Historical backfill records (real risk crossed threshold on a past date,
+    no SMS ever dispatched) are excluded by default so this log reads as what
+    it's titled — an SMS dispatch log — matching /alerts/stats. Pass
+    include_historical=true to see the full record including those.
+    """
     db = get_db()
-    query: dict = {}
+    query: dict = {} if include_historical else {"backfill_note": {"$exists": False}}
 
     if district:
         # Join through predictions to filter by district

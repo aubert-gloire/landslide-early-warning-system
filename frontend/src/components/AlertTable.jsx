@@ -57,9 +57,10 @@ const PAGE_SIZE = 20;
 export default function AlertTable() {
   const [district, setDistrict] = useState("");
   const [page, setPage] = useState(0);
+  const [includeHistorical, setIncludeHistorical] = useState(false);
 
-  const path = `/api/alerts?limit=${PAGE_SIZE}&skip=${page * PAGE_SIZE}${district ? `&district=${district}` : ""}`;
-  const { data, loading, error, refetch } = useApi(path, [district, page]);
+  const path = `/api/alerts?limit=${PAGE_SIZE}&skip=${page * PAGE_SIZE}${district ? `&district=${district}` : ""}${includeHistorical ? "&include_historical=true" : ""}`;
+  const { data, loading, error, refetch } = useApi(path, [district, page, includeHistorical]);
 
   const alerts = data?.alerts || [];
   const total = data?.total || 0;
@@ -76,8 +77,16 @@ export default function AlertTable() {
           {DISTRICTS.map((d) => <option key={d}>{d}</option>)}
         </select>
         <button style={styles.btn} onClick={refetch}>Refresh</button>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--chalk-dim)" }}>
+          <input
+            type="checkbox"
+            checked={includeHistorical}
+            onChange={(e) => { setIncludeHistorical(e.target.checked); setPage(0); }}
+          />
+          Show historical (no SMS)
+        </label>
         <span style={{ color: "var(--chalk-dim)", fontSize: 12, alignSelf: "center" }}>
-          {total} total alerts
+          {total} {includeHistorical ? "total alert records" : "real SMS dispatches"}
         </span>
       </div>
 
@@ -117,6 +126,11 @@ export default function AlertTable() {
                       <SeverityBadge level="WATCH" label="HISTORICAL — not dispatched" />
                     ) : a.provider_status && Object.keys(a.provider_status).length > 0 ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {"africastalking" in a.provider_status && (
+                          <span style={{ fontSize: 10, color: "var(--chalk-dim)" }}>
+                            (sent before the Telerivet-only switch, 23 Jul 2026)
+                          </span>
+                        )}
                         {Object.entries(a.provider_status).map(([provider, rawStatus]) => {
                           const error = a.provider_errors?.[provider];
                           const level = error ? "FAILED" : "SENT";
