@@ -3,7 +3,7 @@
 **BSc Software Engineering Capstone · African Leadership University**
 **Student:** Aubert Gloire Bihibindi · **Supervisor:** Dirac Murairi
 
-> An ML-based operational early warning system that scores daily landslide risk across 396 slope units in Northern Province Rwanda, dispatches SMS alerts to registered field officers, and provides a real-time monitoring dashboard.
+> An ML-based operational early warning system that scores daily landslide risk across 250 slope units in Northern Province Rwanda, dispatches SMS alerts to registered field officers, and provides a real-time monitoring dashboard.
 
 | | |
 |---|---|
@@ -38,10 +38,10 @@ Northern Province Rwanda records the highest landslide frequency in the country 
 
 This system automates the full warning pipeline:
 
-1. **Every morning at 08:00 UTC**, a GitHub Actions cron job triggers the backend pipeline
+1. **Every morning at 15:00 UTC** (after GPM IMERG's ~14h latency window), a GitHub Actions cron job triggers the backend pipeline
 2. Yesterday's rainfall is downloaded from NASA GPM IMERG (~14h latency) with CHIRPS Preliminary as fallback
 3. The USGS earthquake API is queried — a nearby M4.0+ event automatically lowers the alert threshold
-4. An XGBoost classifier scores all 396 slope units (AUC = 0.959)
+4. An XGBoost classifier scores all 250 slope units (AUC = 0.959)
 5. Units above the risk threshold trigger SMS alerts to registered district officers via Africa's Talking + Telerivet
 6. Officers reply YES/NO by SMS — feedback is logged and tracked as real-world operational accuracy
 
@@ -57,7 +57,7 @@ The system runs every single morning regardless of weather conditions. What chan
 - The officer is expected to investigate on the ground and reply YES (confirmed) or NO (false alarm)
 - All high-risk predictions are saved to MongoDB and visible on the dashboard
 
-**When risk is LOW (all 396 slope units score below 5%):**
+**When risk is LOW (all 250 slope units score below 5%):**
 - No SMS is sent — officers are not disturbed unnecessarily
 - All predictions are still saved to the database for historical tracking
 - The risk map updates to show current scores (all green polygons during dry season)
@@ -86,7 +86,7 @@ This behaviour is intentional. During Rwanda's dry season (June–September), ra
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   PIPELINE  (backend/app/services/pipeline.py)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Feature Matrix (396 units × 8 features)
+  Feature Matrix (250 units × 12 features)
             ▼
   XGBoost Classifier
   ImbPipeline: SimpleImputer → SMOTE → XGBClassifier
@@ -104,7 +104,7 @@ This behaviour is intentional. During Rwanda's dry season (June–September), ra
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   DASHBOARD  (React 18 + FastAPI)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  /api/risk-map    → Risk Map tab   — 396 GeoJSON polygons, colour-coded by risk
+  /api/risk-map    → Risk Map tab   — 250 GeoJSON polygons, colour-coded by risk
   /api/districts   → Districts tab  — per-district peak risk summary
   /api/alerts      → Alerts tab     — full SMS log + officer YES/NO feedback
   /api/trigger     → Run Pipeline button
@@ -217,7 +217,7 @@ pip install -r ../scripts/requirements-setup.txt
 ```bash
 # From repo root (not backend/)
 python scripts/setup_db.py dem      # Download Copernicus 30m DEM + compute slope/TWI
-python scripts/setup_db.py units    # Generate 396 slope units via watershed analysis
+python scripts/setup_db.py units    # Generate ~250 slope units via watershed analysis, clipped to Rwanda's border
 python scripts/setup_db.py ndvi     # Sentinel-2 NDVI via Google Earth Engine
 python scripts/setup_db.py soil     # ISRIC SoilGrids soil class
 python scripts/setup_db.py chirps   # CHIRPS historical rainfall 2010–2024
@@ -282,7 +282,7 @@ curl https://landslide-ews-api.onrender.com/health
 # Expected: {"status": "ok"}
 
 curl https://landslide-ews-api.onrender.com/api/districts
-# Expected: {"districts": [...]} with 4 district summaries
+# Expected: {"districts": [...]} with 5 district summaries
 ```
 
 ### Frontend → Vercel
@@ -292,12 +292,12 @@ curl https://landslide-ews-api.onrender.com/api/districts
 3. Add environment variable: `VITE_API_BASE_URL` = `https://landslide-ews-api.onrender.com`
 4. Deploy — Vercel auto-deploys on every push to `main`
 
-**Verification:** Visit the Vercel URL — the dashboard loads, logs in, and the Risk Map renders 396 polygons.
+**Verification:** Visit the Vercel URL — the dashboard loads, logs in, and the Risk Map renders 250 polygons.
 
 ### Daily automated pipeline → GitHub Actions
 
 File: `.github/workflows/daily_pipeline.yml`
-- Triggers at 08:00 UTC (10:00 Kigali time) daily
+- Triggers at 15:00 UTC (17:00 Kigali time) daily
 - POSTs to `/api/trigger` on the Render backend
 - Add `API_BASE_URL` secret in GitHub → Settings → Secrets and variables → Actions
 
@@ -399,11 +399,11 @@ All endpoints tested against the live production API using `curl`:
 curl https://landslide-ews-api.onrender.com/health
 # → {"status":"ok"}
 
-# Districts — 4 district summaries with live predictions
+# Districts — 5 district summaries with live predictions
 curl https://landslide-ews-api.onrender.com/api/districts
 # → {"districts":[{"district":"Gakenke","unit_count":44,...}, ...]}
 
-# Risk map — 396 GeoJSON features
+# Risk map — 250 GeoJSON features
 curl https://landslide-ews-api.onrender.com/api/risk-map | python -m json.tool
 
 # Alerts log
@@ -413,8 +413,8 @@ curl https://landslide-ews-api.onrender.com/api/alerts
 | Endpoint | Test | Result |
 |----------|------|--------|
 | `GET /health` | Uptime check | ✓ 200 `{"status":"ok"}` |
-| `GET /api/risk-map` | 396 GeoJSON features returned | ✓ |
-| `GET /api/districts` | 4 district summaries returned | ✓ |
+| `GET /api/risk-map` | 250 GeoJSON features returned | ✓ |
+| `GET /api/districts` | 5 district summaries returned | ✓ |
 | `GET /api/alerts` | Paginated alert history returned | ✓ |
 | `POST /api/trigger` | Full pipeline run triggered | ✓ |
 | `POST /api/predict` | Risk score for custom inputs | ✓ |
@@ -503,7 +503,7 @@ Pipeline execution time (production, Render Starter): ~45 seconds for full 396-u
 The following objectives were agreed with the supervisor at project proposal stage:
 
 **Objective 1: Automate daily landslide risk scoring for all monitored slope units in Northern Province**
-✅ Achieved. The pipeline runs automatically at 08:00 UTC via GitHub Actions. All 396 slope units across 4 districts receive a fresh risk score every morning with ~14-hour data lag (GPM IMERG) versus the 4-day lag of the original CHIRPS-only design. The reduced latency means the system has more time in the day to act on the assessment before conditions change.
+✅ Achieved. The pipeline runs automatically at 15:00 UTC via GitHub Actions. All 250 slope units across 5 districts receive a fresh risk score every morning with ~14-hour data lag (GPM IMERG) versus the 4-day lag of the original CHIRPS-only design. The reduced latency means the system has more time in the day to act on the assessment before conditions change.
 
 **Objective 2: Achieve AUC ≥ 0.90 on historical validation**
 ✅ Exceeded. XGBoost achieved AUC = 0.959, above the 0.90 target. Class imbalance (landslide events are rare relative to non-events) was addressed with SMOTE oversampling inside a cross-validation-safe `ImbPipeline`, preventing data leakage between folds. Four models were compared on the same dataset — XGBoost outperformed Random Forest (0.941), Logistic Regression (0.812), and SVM (0.798).
@@ -523,7 +523,7 @@ The following objectives were agreed with the supervisor at project proposal sta
 
 **Rainfall source latency:** GPM IMERG Late Daily has ~14-hour latency, meaning yesterday's data is available by midday today. For a truly real-time system during an active rain event, GPM IMERG Early Run (~4-hour latency) or ground-level rain gauge data would be preferable. This would require a different data access agreement.
 
-**Geographic scope:** 4 districts of Northern Province are monitored. Southern and Western Province also experience landslides but are outside scope due to the absence of labeled training data from those regions. The model's thresholds are calibrated specifically to Northern Province terrain.
+**Geographic scope:** 5 districts of Northern Province are monitored (Gakenke, Burera, Musanze, Gicumbi, Rulindo). Southern and Western Province also experience landslides but are outside scope due to the absence of labeled training data from those regions. The model's thresholds are calibrated specifically to Northern Province terrain.
 
 ---
 

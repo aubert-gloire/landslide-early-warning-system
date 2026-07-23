@@ -35,7 +35,7 @@ QA: list[dict] = [
         "triggers": ["how does it work", "how does the system work", "overview", "getting started", "end to end"],
         "answer": (
             "Every morning: (1) NASA satellites measure yesterday's rainfall across Northern Province "
-            "(GPM IMERG, falls back to CHIRPS). (2) The system already knows each of 396 slope units' "
+            "(GPM IMERG, falls back to CHIRPS). (2) The system already knows each of 250 slope units' "
             "terrain, soil, and vegetation. (3) An XGBoost model combines today's rainfall with that "
             "terrain data and scores every unit 0-100% risk — the most important factor is rainfall over "
             "the past 5 days, not just today. (4) Any unit scoring 5%+ triggers an SMS to the district "
@@ -46,7 +46,7 @@ QA: list[dict] = [
     {
         "triggers": ["risk map", "map", "colour", "color", "polygon"],
         "answer": (
-            "The Risk Map shows all 396 slope units as coloured polygons: green (below 50%), amber "
+            "The Risk Map shows all 250 slope units as coloured polygons: green (below 50%), amber "
             "(50-79%), red (80%+, SMS sent). Click a polygon for unit ID, district, sector, and risk %. "
             "The map always shows the most recent pipeline run — run the pipeline to refresh it."
         ),
@@ -56,7 +56,7 @@ QA: list[dict] = [
         "answer": (
             "The pipeline runs every morning (10:00 AM Kigali time via GitHub Actions, or manually via "
             "Run Pipeline). It downloads yesterday's rainfall, checks for nearby earthquakes, builds the "
-            "feature matrix, scores all 396 units, saves predictions, and sends SMS alerts to any unit "
+            "feature matrix, scores all 250 units, saves predictions, and sends SMS alerts to any unit "
             "above threshold."
         ),
     },
@@ -82,7 +82,7 @@ QA: list[dict] = [
         "answer": (
             "A slope unit is a section of hillside bounded by ridge and valley lines that drains water in "
             "one consistent direction — a more meaningful grouping for landslide risk than a flat pixel "
-            "grid. The system tracks 396 of them across Northern Province."
+            "grid. The system tracks 250 of them across Northern Province."
         ),
     },
     {

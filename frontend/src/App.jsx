@@ -105,7 +105,7 @@ export default function App() {
             <button
               onClick={startPipeline}
               disabled={pipelineRunning}
-              title="Fetch today's satellite rainfall and re-score all 396 slope units now, instead of waiting for the next scheduled run"
+              title="Fetch today's satellite rainfall and re-score all 250 slope units now, instead of waiting for the next scheduled run"
               style={{
                 padding: "7px 14px", borderRadius: "var(--radius)",
                 background: "var(--ember)", border: "1px solid var(--ember)",

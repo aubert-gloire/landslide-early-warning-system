@@ -184,7 +184,7 @@ export default function Dashboard({ onRunPipeline, onNavigate }) {
           </button>
           <button
             onClick={onRunPipeline}
-            title="Fetch today's satellite rainfall and re-score all 396 slope units now, instead of waiting for the next scheduled run"
+            title="Fetch today's satellite rainfall and re-score all 250 slope units now, instead of waiting for the next scheduled run"
             style={{
               borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 600,
               background: "transparent", border: "1px solid var(--line-strong)", color: "var(--chalk)",
