@@ -19,7 +19,7 @@ const DISTRICT_INFO = {
 };
 
 const styles = {
-  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 },
+  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14 },
   card: {
     background: "var(--panel)", border: "1px solid var(--line-strong)",
     borderRadius: 10, padding: "18px 20px",
