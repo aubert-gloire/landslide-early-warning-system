@@ -19,6 +19,10 @@ class AlertRecord(BaseModel):
     # per-provider rendering doesn't need to change if one is ever added back.
     provider_status: dict[str, str] = {}
     provider_errors: dict[str, str] = {}
+    # Telerivet's own message id — lets the delivery-status webhook
+    # (POST /api/sms/telerivet-status) find this record later when Telerivet
+    # confirms real handset delivery, independent of when we sent it.
+    telerivet_message_id: str | None = None
     # Denormalized from prediction for fast alert-history display
     district: str | None = None
     slope_unit_id: int | None = None

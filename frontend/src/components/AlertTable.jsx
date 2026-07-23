@@ -133,7 +133,7 @@ export default function AlertTable() {
                         )}
                         {Object.entries(a.provider_status).map(([provider, rawStatus]) => {
                           const error = a.provider_errors?.[provider];
-                          const level = error ? "FAILED" : "SENT";
+                          const level = error ? "FAILED" : rawStatus === "delivered" ? "DELIVERED" : "SENT";
                           return (
                             <span key={provider} title={error || rawStatus} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                               <SeverityBadge level={level} label={`${provider}: ${rawStatus}`} />

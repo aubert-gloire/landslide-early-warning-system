@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     telerivet_api_key: str = ""
     telerivet_project_id: str = ""
     telerivet_route_id: str = ""   # Android SIM route ID — leave blank to use Telerivet default
+    telerivet_status_secret: str = ""  # verifies inbound delivery-status webhooks are genuinely from Telerivet
+    public_api_base_url: str = ""  # this backend's own public URL — Telerivet needs it to know where to POST delivery status
 
     # NASA Earthdata (required for GPM IMERG download)
     earthdata_token: str = ""

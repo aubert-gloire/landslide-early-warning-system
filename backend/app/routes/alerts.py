@@ -1,13 +1,28 @@
+import logging
 from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 
+from ..config import get_settings
 from ..database import get_db
 from ..services.sms import handle_inbound
 from .auth import require_auth
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# Telerivet's own outgoing-message statuses, mapped to our delivery_status enum.
+# "sent"/"queued" mean Telerivet accepted it but hasn't confirmed handset
+# delivery yet — delivery_status was already set to "sent" at send time, so
+# there's nothing to upgrade until a later, more conclusive status arrives.
+_TELERIVET_STATUS_MAP = {
+    "delivered": "delivered",
+    "not_delivered": "failed",
+    "failed": "failed",
+    "failed_queued": "failed",
+    "cancelled": "failed",
+}
 
 
 @router.get("/alerts", dependencies=[Depends(require_auth)])
@@ -94,4 +109,51 @@ async def telerivet_inbound_webhook(request: Request):
     text = data.get("content", "")
     if phone and text:
         await handle_inbound(phone, text)
+    return {"status": "ok"}
+
+
+@router.post("/sms/telerivet-status")
+async def telerivet_status_webhook(request: Request):
+    """
+    Telerivet delivery-status webhook (application/x-www-form-urlencoded,
+    per https://telerivet.com/api/webhook) — fired when an outgoing message's
+    real status changes, separately from the initial send response. This is
+    what lets delivery_status become a genuine "delivered" rather than
+    staying at "sent" (queue-accepted) forever.
+
+    No Bearer-token auth here — Telerivet can't send one. Authenticity is
+    verified via the shared status_secret instead, same as any webhook.
+    """
+    form = await request.form()
+    settings = get_settings()
+
+    if not settings.telerivet_status_secret or form.get("secret") != settings.telerivet_status_secret:
+        logger.warning("Telerivet status webhook: bad or missing secret")
+        return {"status": "ignored"}
+
+    message_id = form.get("id")
+    raw_status = form.get("status", "")
+    mapped = _TELERIVET_STATUS_MAP.get(raw_status)
+    if not message_id or mapped is None:
+        # "sent"/"queued" land here too — expected, not an error.
+        return {"status": "ok"}
+
+    db = get_db()
+    update: dict = {
+        "delivery_status": mapped,
+        "provider_status.telerivet": raw_status,
+    }
+    error_message = form.get("error_message")
+    if error_message:
+        update["provider_errors.telerivet"] = error_message
+
+    result = await db.alert_records.update_one(
+        {"telerivet_message_id": message_id},
+        {"$set": update},
+    )
+    if result.matched_count == 0:
+        logger.warning("Telerivet status webhook: no alert_record for message_id=%s", message_id)
+    else:
+        logger.info("Telerivet status update: message_id=%s → %s (%s)", message_id, mapped, raw_status)
+
     return {"status": "ok"}

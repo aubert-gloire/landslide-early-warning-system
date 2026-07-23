@@ -85,6 +85,12 @@ async def _send_via_telerivet(phone: str, message: str) -> dict:
     payload: dict = {"to_number": phone, "content": message}
     if settings.telerivet_route_id:
         payload["route_id"] = settings.telerivet_route_id
+    # Ask Telerivet to POST a real delivery confirmation back to us later —
+    # without this, "queued" is the last status we ever see, and we'd have
+    # no basis to ever show "delivered" as anything but a guess.
+    if settings.public_api_base_url and settings.telerivet_status_secret:
+        payload["status_url"] = f"{settings.public_api_base_url}/api/sms/telerivet-status"
+        payload["status_secret"] = settings.telerivet_status_secret
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             url,
@@ -101,10 +107,11 @@ async def _send_via_telerivet(phone: str, message: str) -> dict:
     status = data.get("status", "unknown")
     logger.info("Telerivet response: id=%s status=%s route=%s", data.get("id"), status, settings.telerivet_route_id or "default")
     # Telerivet's send response reflects acceptance into its outbound queue,
-    # not final delivery (that arrives later via webhook) — only treat its
-    # own explicit failure/cancellation statuses as a failure here.
+    # not final delivery (that arrives later via the status webhook, if
+    # configured) — only treat its own explicit failure/cancellation
+    # statuses as a failure here.
     success = status not in ("failed", "failed_queued", "not_delivered", "cancelled")
-    return {"success": success, "raw_status": status, "error": None if success else status}
+    return {"success": success, "raw_status": status, "error": None if success else status, "message_id": data.get("id")}
 
 
 async def _dispatch_sms(phone: str, message: str) -> dict:
@@ -126,7 +133,10 @@ async def _dispatch_sms(phone: str, message: str) -> dict:
     provider_status = {"telerivet": result["raw_status"]}
     provider_errors = {"telerivet": result["error"]} if result.get("error") else {}
     overall = "sent" if result["success"] else "failed"
-    return {"overall": overall, "providers": provider_status, "errors": provider_errors}
+    return {
+        "overall": overall, "providers": provider_status, "errors": provider_errors,
+        "telerivet_message_id": result.get("message_id"),
+    }
 
 
 async def send_alert(
@@ -180,6 +190,7 @@ async def send_alert(
             "delivery_status": dispatch["overall"],
             "provider_status": dispatch["providers"],
             "provider_errors": dispatch["errors"],
+            "telerivet_message_id": dispatch.get("telerivet_message_id"),
         }},
     )
     logger.info(
