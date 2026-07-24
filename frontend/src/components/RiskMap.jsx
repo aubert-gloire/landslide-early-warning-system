@@ -100,13 +100,17 @@ export default function RiskMap() {
         {[
           { color: "#74936A", label: "low (< 50%)" },
           { color: "#C99A3E", label: "moderate (50–79%)" },
-          { color: "#C24B3A", label: "high (≥ 80%) — alert sent" },
+          { color: "#C24B3A", label: "high (≥ 80%)" },
         ].map(({ color, label }) => (
           <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
             <span style={{ width: 9, height: 9, borderRadius: "50%", background: color, display: "inline-block" }} />
             {label}
           </div>
         ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+          <span style={{ color: "#E2836F" }}>&#9888;</span>
+          <span>SMS dispatched — click a unit to check (real threshold is much lower than the color bands above; see popup)</span>
+        </div>
         <div style={{ marginTop: 8, borderTop: "1px solid var(--line)", paddingTop: 7, display: "flex", flexDirection: "column", gap: 2 }}>
           <div style={{ opacity: 0.7 }}>{status}</div>
           {runDate  && <div style={{ opacity: 0.6 }}>Assessment: {runDate}</div>}

@@ -331,10 +331,13 @@ File: `.github/workflows/daily_pipeline.yml`
 
 ### Strategy 0 — Automated Unit Tests
 
-`backend/tests/` — 35 automated `pytest` tests covering the three pieces of
-core logic most in need of regression protection: risk-threshold
-classification, the antecedent-rainfall rolling-window math, and the
-production XGBoost model's inference behaviour.
+`backend/tests/` — 38 automated `pytest` tests: 35 pure-function unit
+tests covering the three pieces of core logic most in need of regression
+protection (risk-threshold classification, the antecedent-rainfall
+rolling-window math, and the production XGBoost model's inference
+behaviour), plus 3 integration tests that chain real feature assembly →
+real scoring → real alert-message construction → provider dispatch
+together end to end, with only the outbound Telerivet HTTP call mocked.
 
 ```bash
 cd backend
@@ -347,6 +350,7 @@ pytest
 | `test_predict_thresholds.py` | `_risk_level` / `_threshold_context` (`routes/predict.py`) | Boundary values at every risk tier; NDVI's inverted "lower = worse" threshold direction, the one feature that breaks the pattern the other five follow. |
 | `test_rainfall_windows.py` | `compute_antecedent_windows` (`ml/features/rainfall_windows.py`) | Rolling-sum correctness against hand-computed values; that antecedent windows don't leak across slope units; the intensity-ratio formula. |
 | `test_xgb_model.py` | `XGBModel.predict()` (`app/ml/xgb_model.py`) | Runs against the real trained artifact (not a mock) — reproduces both worked examples from Strategy 3 below, checks `threshold_override` actually changes the outcome, and checks monotonicity on the model's top feature. **Found and fixed a real bug**: `predict()` silently narrowed to whichever feature columns were present instead of padding missing ones, so any caller supplying fewer than all 12 trained columns crashed with a raw sklearn `ValueError` instead of degrading gracefully. No current call site was affected (all of them always supply the full 12), but it was a live landmine for the next one that doesn't. |
+| `test_pipeline_integration.py` | Feature assembly → scoring → alert message → dispatch, chained | Real `slope_units.gpkg` and static terrain/NDVI/soil/landuse files feed the real `FeatureMatrixBuilder` and the real trained model; `_dispatch_sms()` is tested against both a mocked Telerivet success response and a mocked network failure, confirming it degrades to a structured failure rather than raising. No MongoDB dependency, no real network calls, no real SMS. |
 
 The antecedent-rainfall window logic was previously duplicated inline in
 two branches of `DataPipeline._run_daily_impl` with no test coverage at
